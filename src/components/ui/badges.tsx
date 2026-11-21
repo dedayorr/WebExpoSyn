@@ -7,7 +7,7 @@ export function SeverityBadge({ severity, className }: { severity: Severity; cla
   return (
     <span
       className={cn(
-        'inline-block min-w-[74px] rounded-md px-2.5 py-1 text-center text-[11px] font-bold uppercase tracking-wide',
+        'inline-block min-w-18.5 rounded-md px-2.5 py-1 text-center text-[11px] font-bold uppercase tracking-wide',
         s.className,
         className,
       )}

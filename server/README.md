@@ -6,7 +6,8 @@ Node.js + Express + TypeScript backend for WebExpoSyn: scan orchestration, SSRF-
 
 ```bash
 cd server
-cp .env.example .env      # then set VERIFICATION_SECRET
+cp .env.example .env      # set VERIFICATION_SECRET and SUPABASE_URL
+                          # (or NODE_ENV=development + AUTH_MODE=disabled to try it without Supabase)
 npm install
 npm run dev               # http://localhost:4000
 ```
@@ -27,9 +28,11 @@ npm test
 
 ## API
 
+All routes except `/api/health` require `Authorization: Bearer <Supabase access token>`.
+
 | Method | Route | Body | Returns |
 | --- | --- | --- | --- |
-| `GET` | `/api/health` | | `{ status, activeScans }` |
+| `GET` | `/api/health` | | `{ status }` |
 | `POST` | `/api/scans` | `{ url, dkimSelectors? }` | Full `ScanReport` (see `src/types.ts`) |
 | `GET` | `/api/verification/:domain` | | TXT record the owner must add |
 | `POST` | `/api/verification/check` | `{ domain }` | `{ domain, verified }` |
@@ -39,14 +42,17 @@ Errors always use `{ error: { code, message } }`:
 | Status | When |
 | --- | --- |
 | `400` | Invalid request body |
+| `401` | Missing, expired or invalid session token |
 | `422` | Target rejected (internal host, private IP, bad port…); `code` says why |
-| `429` | Rate limit hit |
+| `429` | Rate limit hit (`RATE_LIMITED`) or the target was scanned recently (`TARGET_COOLDOWN`) |
+| `504` | Scan exceeded `SCAN_TIMEOUT_MS` |
 | `503` | Too many scans running at once |
 
 Example:
 
 ```bash
 curl -X POST http://localhost:4000/api/scans \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"url":"https://example.com","dkimSelectors":["google"]}'
 ```
@@ -77,8 +83,13 @@ These are enforced in code, not just documented:
 - **DNS pinning.** Sockets connect to the address that was validated, which defeats DNS rebinding between check and use.
 - **Manual redirects**, at most 5, each one re-validated.
 - **Timeouts** (per request and per module) and **response-size limits**.
-- **Rate limiting**: 10 scans per IP per 15 minutes by default, plus a concurrency cap.
-- **Controlled exposure checks.** A fixed list of 8 files, 4 folders and 4 subdomains, matched by content signature to avoid soft-404 false positives, with a delay between requests. Evidence is truncated so reports never contain leaked secrets.
+- **Authentication**: Supabase tokens verified locally with a pinned algorithm, issuer, audience and expiry. The server won't start without auth unless it's explicitly in development.
+- **Rate limiting**: 10 scans per user (or IP) per 15 minutes by default, plus a concurrency cap.
+- **Per-target throttle**: any one hostname can be scanned at most 3 times per 10 minutes across all users, so the scanner can't be turned against a third party.
+- **Bounded work**: overall scan timeout (`504`), DNS lookup timeout, and a 12-query budget when walking SPF includes.
+- **Fail-closed config**: a verification secret of at least 32 characters is required, `NODE_ENV` defaults to production, and `CORS_ORIGINS="*"` is refused.
+- **Security event log**: JSON lines for scans, rejected targets, rate limits and failed auth (no tokens or bodies).
+- **Controlled exposure checks.** A fixed list of 8 files, 4 folders and 4 subdomains, matched by content signature to avoid soft-404 false positives, with a delay between requests. Evidence is a safe description only (for example, variable names with values hidden), so reports never contain leaked secrets.
 - **Nothing is executed.** Responses are only read as text.
 - **No internals leak.** Errors return codes and friendly messages, never stack traces.
 - **Hardened server.** `helmet`, a CORS allowlist and a 10 KB JSON body limit.
@@ -101,7 +112,8 @@ server/
 
 ## Next steps
 
-- Persist users, domains, scans and findings in Supabase PostgreSQL, with Supabase Auth
+- Persist domains, scans and findings in Supabase PostgreSQL with Row Level Security
 - Bind verification tokens to user accounts
+- Move rate-limit and throttle state to Redis when running more than one instance
 - Stream scan progress to the Scan screen (Server-Sent Events)
 - PDF report generation and scheduled re-scans

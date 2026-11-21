@@ -84,3 +84,21 @@ describe('runEmailChecks', () => {
     expect(r['email.spf'].title).toBe('Multiple SPF records')
   })
 })
+
+describe('SPF lookup budget', () => {
+  it('stops walking a hostile include tree after a small, fixed number of queries', async () => {
+    let queries = 0
+    // Every domain includes 20 more domains: unbounded fan-out if not capped.
+    const hostile = {
+      resolveTxt: async (name: string) => {
+        queries++
+        return [[`v=spf1 ${Array.from({ length: 20 }, (_, i) => `include:${i}.${name}`).join(' ')} -all`]]
+      },
+      resolveMx: async () => [],
+    } as unknown as import('../src/lib/dnsClient.js').DnsClient
+    const result = await countSpfLookups('evil.com', hostile)
+    expect(result.stopped).toBe(true)
+    expect(result.count).toBeGreaterThan(10)
+    expect(queries).toBeLessThanOrEqual(12)
+  })
+})

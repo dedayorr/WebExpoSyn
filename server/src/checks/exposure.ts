@@ -22,11 +22,19 @@ interface SensitivePath {
   signature: RegExp
   why: string
   action: string
+  /**
+   * Safe description of what was found. Must NEVER include secret values:
+   * reports can be downloaded and shared.
+   */
+  describe?: (body: string) => string
 }
+
+const count = (re: RegExp, body: string) => (body.match(re) ?? []).length
 
 export const SENSITIVE_PATHS: SensitivePath[] = [
   {
     path: '/.git/HEAD',
+    describe: (b) => (/^ref: refs\/heads\/[\w.\/-]{1,60}/m.exec(b)?.[0] ?? 'commit hash returned'),
     label: 'Git repository metadata (/.git/)',
     severity: 'critical',
     signature: /^(ref: refs\/|[0-9a-f]{40}\s*$)/m,
@@ -35,6 +43,7 @@ export const SENSITIVE_PATHS: SensitivePath[] = [
   },
   {
     path: '/.env',
+    describe: (b) => `variable names found: ${[...b.matchAll(/^([A-Z][A-Z0-9_]{2,40})=/gm)].slice(0, 6).map((m) => m[1]).join(', ')} (values hidden)`,
     label: 'Environment file (/.env)',
     severity: 'critical',
     signature: /^(?!<)[A-Z][A-Z0-9_]{2,}=\S*/m,
@@ -43,6 +52,7 @@ export const SENSITIVE_PATHS: SensitivePath[] = [
   },
   {
     path: '/.htpasswd',
+    describe: (b) => `${count(/^[^:\s<]+:/gm, b)} password hash entries (hidden)`,
     label: 'Password file (/.htpasswd)',
     severity: 'critical',
     signature: /^[^:\s<]+:(\$apr1\$|\$2[aby]\$|\{SHA\}|[./0-9A-Za-z]{13})/m,
@@ -51,6 +61,7 @@ export const SENSITIVE_PATHS: SensitivePath[] = [
   },
   {
     path: '/backup.sql',
+    describe: (b) => `${count(/CREATE TABLE/gi, b)} CREATE TABLE and ${count(/INSERT INTO/gi, b)} INSERT statements in the first 16 KB (contents hidden)`,
     label: 'Database dump (/backup.sql)',
     severity: 'critical',
     signature: /(CREATE TABLE|INSERT INTO)\s/i,
@@ -59,6 +70,7 @@ export const SENSITIVE_PATHS: SensitivePath[] = [
   },
   {
     path: '/wp-config.php.bak',
+    describe: () => 'file contains DB_PASSWORD (value hidden)',
     label: 'WordPress config backup',
     severity: 'critical',
     signature: /DB_PASSWORD/,
@@ -67,6 +79,7 @@ export const SENSITIVE_PATHS: SensitivePath[] = [
   },
   {
     path: '/phpinfo.php',
+    describe: () => 'phpinfo() output returned',
     label: 'PHP info page (/phpinfo.php)',
     severity: 'medium',
     signature: /phpinfo\(\)|<title>PHP \d/i,
@@ -75,6 +88,7 @@ export const SENSITIVE_PATHS: SensitivePath[] = [
   },
   {
     path: '/server-status',
+    describe: () => 'Apache server-status page returned',
     label: 'Apache server-status page',
     severity: 'medium',
     signature: /Apache Server Status/i,
@@ -83,6 +97,7 @@ export const SENSITIVE_PATHS: SensitivePath[] = [
   },
   {
     path: '/.DS_Store',
+    describe: () => '.DS_Store index file returned',
     label: 'macOS folder index (/.DS_Store)',
     severity: 'low',
     signature: /Bud1/,
@@ -127,14 +142,14 @@ export async function runExposureChecks(
   const out: Finding[] = []
 
   // Sensitive files
-  const exposed: { p: SensitivePath; status: number; snippet: string }[] = []
+  const exposed: { p: SensitivePath; status: number; summary: string }[] = []
   const checked: string[] = []
   for (const p of SENSITIVE_PATHS) {
     try {
       const res = await fetcher(`${base}${p.path}`)
       checked.push(`${p.path} → ${res.status}`)
       if (res.status === 200 && p.signature.test(res.body)) {
-        exposed.push({ p, status: res.status, snippet: res.body.slice(0, 80).replace(/\s+/g, ' ') })
+        exposed.push({ p, status: res.status, summary: p.describe?.(res.body) ?? 'signature matched (contents hidden)' })
       }
     } catch (err) {
       checked.push(`${p.path} → ${errorMessage(err)}`)
@@ -151,8 +166,8 @@ export async function runExposureChecks(
         found: `A request for ${e.p.path} returned content that matches a real ${e.p.label.toLowerCase()}.`,
         why: e.p.why,
         action: e.p.action,
-        // Evidence is truncated so the report itself never becomes a copy of a leaked secret.
-        evidence: evidence(`GET ${base}${e.p.path}`, `→ ${e.status} OK`, `${e.snippet.slice(0, 40)}…`),
+        // Only a safe description: the report itself must never become a copy of a leaked secret.
+        evidence: evidence(`GET ${base}${e.p.path}`, `→ ${e.status} OK`, e.summary),
       }),
     )
   }

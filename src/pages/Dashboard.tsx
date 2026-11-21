@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
-import { Check, Download, Menu, Plus, X } from 'lucide-react'
+import { Link, useNavigate } from 'react-router-dom'
+import { Check, Download, LogOut, Menu, Plus, X } from 'lucide-react'
 import { Logo } from '@/components/layout/Logo'
 import { SeverityBadge } from '@/components/ui/badges'
 import { buttonVariants } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
+import { useAuth } from '@/auth/AuthProvider'
 import logoIcon from '@/assets/logo-icon.png'
 import {
   ASSESSED_AT,
@@ -36,6 +37,34 @@ const card = 'rounded-[18px] border border-sky/12 bg-surface p-6'
 export default function Dashboard() {
   const [active, setActive] = useState('Overview')
   const [drawerOpen, setDrawerOpen] = useState(false)
+  const { user, signOut } = useAuth()
+  const navigate = useNavigate()
+  const displayName = (user?.user_metadata?.full_name as string | undefined) ?? user?.email ?? 'Your account'
+
+  async function handleSignOut() {
+    await signOut()
+    navigate('/login', { replace: true })
+  }
+
+  const accountCard = (
+    <div className="mt-4 flex items-center gap-3 rounded-[14px] border border-sky/10 bg-sky/5 p-3">
+      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-royal font-display text-sm font-bold text-white">
+        {displayName.slice(0, 1).toUpperCase()}
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="truncate text-sm font-semibold text-white">{displayName}</div>
+        {user?.email && <div className="truncate text-xs text-subtle">{user.email}</div>}
+      </div>
+      <button
+        onClick={handleSignOut}
+        aria-label="Sign out"
+        title="Sign out"
+        className="flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-lg text-muted hover:bg-sky/10 hover:text-white"
+      >
+        <LogOut size={17} />
+      </button>
+    </div>
+  )
 
   useEffect(() => {
     document.body.style.overflow = drawerOpen ? 'hidden' : ''
@@ -96,6 +125,7 @@ export default function Dashboard() {
           </button>
         </div>
         {nav(() => setDrawerOpen(false))}
+        {accountCard}
       </aside>
 
       {/* Desktop sidebar */}
@@ -114,6 +144,7 @@ export default function Dashboard() {
             Get TXT record →
           </a>
         </div>
+        {accountCard}
       </aside>
 
       <div className="min-w-0 flex-[999_1_560px]">

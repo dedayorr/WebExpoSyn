@@ -39,8 +39,26 @@ export interface ResolvedTarget extends ParsedTarget {
 /** Resolver signature, injectable for tests. */
 export type LookupAll = (hostname: string) => Promise<{ address: string; family: number }[]>
 
+const LOOKUP_TIMEOUT_MS = 5_000
+
+/** System resolver lookup with a hard timeout (getaddrinfo itself has none). */
 export const defaultLookupAll: LookupAll = (hostname) =>
-  dns.promises.lookup(hostname, { all: true, verbatim: true })
+  new Promise((resolve, reject) => {
+    const timer = setTimeout(
+      () => reject(Object.assign(new Error('DNS lookup timed out'), { code: 'ETIMEOUT' })),
+      LOOKUP_TIMEOUT_MS,
+    )
+    dns.promises.lookup(hostname, { all: true, verbatim: true }).then(
+      (r) => {
+        clearTimeout(timer)
+        resolve(r)
+      },
+      (e) => {
+        clearTimeout(timer)
+        reject(e)
+      },
+    )
+  })
 
 const ALLOWED_PORTS = new Set([80, 443])
 const INTERNAL_SUFFIXES = ['.localhost', '.local', '.internal', '.intranet', '.lan', '.home', '.corp', '.localdomain']

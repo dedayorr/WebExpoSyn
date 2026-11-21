@@ -44,39 +44,60 @@ export function parseSpf(record: string): ParsedSpf {
 
 const LOOKUP_MECHANISMS = new Set(['include', 'a', 'mx', 'ptr', 'exists'])
 
+/** RFC 7208 limit on DNS-querying terms. */
+export const SPF_LOOKUP_LIMIT = 10
 /**
- * Counts DNS-querying terms across includes/redirects. RFC 7208 caps this at
- * 10; above that, receivers return "permerror" and SPF effectively fails.
+ * Hard cap on the TXT queries WE make while walking includes. An attacker's
+ * SPF record could otherwise fan out into thousands of lookups per scan.
+ * Once the RFC limit is exceeded the answer is already "fail", so there is no
+ * reason to keep resolving.
+ */
+export const SPF_MAX_QUERIES = SPF_LOOKUP_LIMIT + 2
+
+interface SpfWalkState {
+  seen: Set<string>
+  queries: number
+  stopped: boolean
+}
+
+/**
+ * Counts DNS-querying terms across includes/redirects. Above 10, receivers
+ * return "permerror" and SPF effectively fails. Stops early once the limit is
+ * clearly exceeded (`stopped: true` means the count is a lower bound).
  */
 export async function countSpfLookups(
   domain: string,
   client: DnsClient,
-  seen = new Set<string>(),
+  state: SpfWalkState = { seen: new Set(), queries: 0, stopped: false },
   depth = 0,
-): Promise<{ count: number; tree: string[] }> {
-  if (depth > 10 || seen.has(domain)) return { count: 0, tree: [] }
-  seen.add(domain)
+): Promise<{ count: number; tree: string[]; stopped: boolean }> {
+  if (depth > 10 || state.seen.has(domain) || state.stopped) return { count: 0, tree: [], stopped: state.stopped }
+  if (state.queries >= SPF_MAX_QUERIES) {
+    state.stopped = true
+    return { count: 0, tree: [], stopped: true }
+  }
+  state.seen.add(domain)
+  state.queries++
   const record = (await txtRecords(client, domain)).find((r) => /^v=spf1(\s|$)/i.test(r))
-  if (!record) return { count: 0, tree: [] }
+  if (!record) return { count: 0, tree: [], stopped: state.stopped }
   const spf = parseSpf(record)
   let count = 0
   const tree: string[] = []
+  const recurse = async (label: string, target: string) => {
+    count++
+    if (count > SPF_LOOKUP_LIMIT && depth === 0) state.stopped = true
+    const sub = await countSpfLookups(target, client, state, depth + 1)
+    count += sub.count
+    if (tree.length < 40) tree.push(`${'  '.repeat(depth)}${label} (+${sub.count})`, ...sub.tree.slice(0, 40))
+  }
   for (const t of spf.terms) {
     if (!LOOKUP_MECHANISMS.has(t.mechanism)) continue
-    count++
-    if (t.mechanism === 'include' && t.value) {
-      const sub = await countSpfLookups(t.value, client, seen, depth + 1)
-      count += sub.count
-      tree.push(`${'  '.repeat(depth)}include:${t.value} (+${sub.count})`, ...sub.tree)
-    }
+    if (t.mechanism === 'include' && t.value) await recurse(`include:${t.value}`, t.value)
+    else count++
+    if (state.stopped) break
   }
-  if (spf.redirect) {
-    count++
-    const sub = await countSpfLookups(spf.redirect, client, seen, depth + 1)
-    count += sub.count
-    tree.push(`${'  '.repeat(depth)}redirect=${spf.redirect} (+${sub.count})`, ...sub.tree)
-  }
-  return { count, tree }
+  if (spf.redirect && !state.stopped) await recurse(`redirect=${spf.redirect}`, spf.redirect)
+  return { count, tree, stopped: state.stopped }
 }
 
 /* ------------------------------------------------------------------ */
@@ -205,18 +226,18 @@ export async function runEmailChecks(domain: string, opts: EmailCheckOptions = {
     }
 
     try {
-      const { count, tree } = await countSpfLookups(domain, client)
+      const { count, tree, stopped } = await countSpfLookups(domain, client)
       out.push(
-        count > 10
+        count > SPF_LOOKUP_LIMIT || stopped
           ? f({
               id: 'email.spf-lookups',
               title: 'SPF exceeds the 10 DNS lookup limit',
               status: 'fail',
               severity: 'medium',
-              found: `Evaluating your SPF record requires ${count} DNS lookups.`,
+              found: `Evaluating your SPF record requires ${stopped ? 'more than ' : ''}${Math.max(count, SPF_LOOKUP_LIMIT + 1)} DNS lookups.`,
               why: 'Receivers may return a permanent error and treat your legitimate mail as failing SPF.',
               action: 'Remove senders you no longer use, or replace nested includes with direct IP ranges.',
-              evidence: evidence(record, `lookups: ${count} / 10`, ...tree),
+              evidence: evidence(record, `lookups: ${stopped ? '>' : ''}${count} / 10`, ...tree),
             })
           : f({
               id: 'email.spf-lookups',

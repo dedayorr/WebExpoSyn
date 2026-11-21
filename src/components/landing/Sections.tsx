@@ -311,7 +311,7 @@ export function CallToAction() {
           Run your first assessment free. No installation, no agents.
         </p>
         <div className="mt-8 flex flex-wrap justify-center gap-3">
-          <Link to="/scan" className={buttonVariants({ variant: 'white', size: 'lg', className: 'font-bold' })}>
+          <Link to="/signup" className={buttonVariants({ variant: 'white', size: 'lg', className: 'font-bold' })}>
             Start free scan
           </Link>
           <Link to="/dashboard" className={buttonVariants({ variant: 'outlineWhite', size: 'lg' })}>

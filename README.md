@@ -28,6 +28,11 @@ This repository contains:
 | `/scan` | Scan in progress | Live step-by-step progress, scan log, completion card |
 | `/dashboard` | Dashboard | Results summary (no vanity score), critical findings, changes since last scan, results by module, websites, scan history |
 | `/report` | Assessment report | Findings filterable by result and module; each opens to *what we found*, *why it matters*, *recommended action* and *evidence* |
+| `/login` | Sign in | Email + password, generic errors, cool-down after repeated failures |
+| `/signup` | Create account | Password strength meter, confirmation email, acceptable-use agreement |
+| `/forgot-password`, `/reset-password` | Password reset | Secure email link; signs out every session after the change |
+
+`/scan`, `/dashboard` and `/report` require sign-in. The API also verifies the session token, so the UI guard is not the only protection.
 
 ## What WebExpoSyn checks
 
@@ -67,6 +72,7 @@ This repository contains:
 
 ```bash
 npm install
+cp .env.example .env.local   # add your Supabase URL and anon key
 npm run dev          # http://localhost:5173
 npm run build        # production build
 ```
@@ -75,10 +81,10 @@ npm run build        # production build
 
 ```bash
 cd server
-cp .env.example .env # set VERIFICATION_SECRET
+cp .env.example .env # set VERIFICATION_SECRET + SUPABASE_URL
 npm install
 npm run dev          # http://localhost:4000
-npm test             # 73 tests, no network needed
+npm test             # 89 tests, no network needed
 npm run scan -- yourdomain.com   # scan from the terminal
 ```
 
@@ -117,7 +123,11 @@ Status colours (pass `#4ADE9A`, fail `#FF8F80`, warning `#F5C451`, high `#FFB27A
 
 Fonts: **Space Grotesk** (headings), **Inter** (body), **JetBrains Mono** (evidence and code).
 
-## Security principles for the scanner (backend roadmap)
+## Security
+
+See [SECURITY.md](SECURITY.md) for the latest security audit, the fixes applied, recommended Supabase settings and how to report a vulnerability.
+
+## Security principles for the scanner
 
 These are requirements, not options, for building a responsible security product:
 
@@ -136,7 +146,9 @@ These are requirements, not options, for building a responsible security product
 - [x] Security engine: TLS, headers, DNS, email checks
 - [x] Controlled exposure checks behind ownership verification (DNS TXT)
 - [ ] Connect the frontend screens to the API
-- [ ] Supabase auth and persistence (users, domains, findings, reports)
+- [x] Login, sign-up and password reset (Supabase Auth) + API token verification
+- [x] Security audit (OWASP Top 10:2025) and fixes
+- [ ] Supabase persistence (domains, findings, reports) with Row Level Security
 - [ ] PDF report generation and scheduled monitoring
 
 ## Credits

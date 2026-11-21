@@ -67,3 +67,16 @@ describe('ownership verification', () => {
     expect(await isOwnershipVerified('shop.com', fakeDns({ txt: { 'shop.com': ['webexposyn-verify=wrong'] } }), secret)).toBe(false)
   })
 })
+
+describe('exposure evidence redaction', () => {
+  it('never copies secret values from an exposed .env into the report', async () => {
+    const secretEnv = 'DB_PASSWORD=SuperSecretValue123\nSTRIPE_KEY=sk_live_abcdefghijklmnop\n'
+    const fetcher: Fetcher = async (url) => (url.endsWith('/.env') ? response(200, secretEnv) : response(404))
+    const out = await runExposureChecks(target, { ownershipVerified: true, fetcher, delayMs: 0 })
+    const env = out.find((f) => f.id.includes('env'))!
+    expect(env.status).toBe('fail')
+    expect(env.evidence).toContain('DB_PASSWORD')
+    expect(env.evidence).not.toContain('SuperSecret')
+    expect(env.evidence).not.toContain('sk_live')
+  })
+})
