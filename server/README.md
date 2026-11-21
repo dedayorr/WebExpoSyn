@@ -1,0 +1,107 @@
+# WebExpoSyn API
+
+Node.js + Express + TypeScript backend for WebExpoSyn: scan orchestration, SSRF-safe target validation and the security engine.
+
+## Quick start
+
+```bash
+cd server
+cp .env.example .env      # then set VERIFICATION_SECRET
+npm install
+npm run dev               # http://localhost:4000
+```
+
+Scan from the terminal without starting the server:
+
+```bash
+npm run scan -- yourdomain.com
+npm run scan -- yourdomain.com --dkim=google
+npm run scan -- yourdomain.com --json > report.json
+```
+
+Run the tests:
+
+```bash
+npm test
+```
+
+## API
+
+| Method | Route | Body | Returns |
+| --- | --- | --- | --- |
+| `GET` | `/api/health` | | `{ status, activeScans }` |
+| `POST` | `/api/scans` | `{ url, dkimSelectors? }` | Full `ScanReport` (see `src/types.ts`) |
+| `GET` | `/api/verification/:domain` | | TXT record the owner must add |
+| `POST` | `/api/verification/check` | `{ domain }` | `{ domain, verified }` |
+
+Errors always use `{ error: { code, message } }`:
+
+| Status | When |
+| --- | --- |
+| `400` | Invalid request body |
+| `422` | Target rejected (internal host, private IP, bad port…); `code` says why |
+| `429` | Rate limit hit |
+| `503` | Too many scans running at once |
+
+Example:
+
+```bash
+curl -X POST http://localhost:4000/api/scans \
+  -H "Content-Type: application/json" \
+  -d '{"url":"https://example.com","dkimSelectors":["google"]}'
+```
+
+## How a scan works
+
+1. **Validate** the URL in `lib/target.ts`. It must be http/https on port 80 or 443, with no credentials, no IP literals and no internal hostnames (`localhost`, `.local`, `.internal`…), and the domain must be public (checked against the Public Suffix List).
+2. **Resolve and check every address.** If any A/AAAA record is private, loopback, link-local (including cloud metadata `169.254.169.254`), CGNAT, multicast or reserved, the scan is refused.
+3. **Check ownership.** A DNS TXT record (`webexposyn-verify=…`) unlocks the exposure module.
+4. **Run the modules in parallel**, each with a time budget. A module that fails or times out is reported as *couldn't verify*, never as a pass.
+5. **Build the report.** Every finding carries status, severity, confidence, what we found, why it matters, the recommended action and evidence.
+
+### Modules
+
+| Module | File | Checks |
+| --- | --- | --- |
+| SSL/TLS | `checks/tls.ts` | HTTPS available, trusted chain, hostname match, expiry, TLS 1.0/1.1 disabled, TLS 1.3 support, HTTP→HTTPS redirect |
+| HTTP headers | `checks/headers.ts` | CSP (incl. unsafe sources), HSTS (incl. max-age), X-Content-Type-Options, clickjacking (XFO or frame-ancestors), Referrer-Policy, Permissions-Policy |
+| DNS | `checks/dns.ts` | Nameserver count, nameserver consistency (SOA serials), CAA, DNSSEC (via DNS-over-HTTPS), dangling CNAMEs |
+| Email | `checks/email.ts` | SPF presence/syntax/qualifier, 10-lookup limit, multiple records, ptr; DMARC policy, pct, reporting; DKIM by supplied or common selectors |
+| Exposure | `checks/exposure.ts` + `headers.ts` | Server version disclosure (always). Sensitive files, directory listings and public staging sites run **only for verified owners** |
+
+## Safety controls
+
+These are enforced in code, not just documented:
+
+- **SSRF protection.** Every URL, including each redirect hop, goes through `parseTarget` + `resolvePublicAddresses`.
+- **DNS pinning.** Sockets connect to the address that was validated, which defeats DNS rebinding between check and use.
+- **Manual redirects**, at most 5, each one re-validated.
+- **Timeouts** (per request and per module) and **response-size limits**.
+- **Rate limiting**: 10 scans per IP per 15 minutes by default, plus a concurrency cap.
+- **Controlled exposure checks.** A fixed list of 8 files, 4 folders and 4 subdomains, matched by content signature to avoid soft-404 false positives, with a delay between requests. Evidence is truncated so reports never contain leaked secrets.
+- **Nothing is executed.** Responses are only read as text.
+- **No internals leak.** Errors return codes and friendly messages, never stack traces.
+- **Hardened server.** `helmet`, a CORS allowlist and a 10 KB JSON body limit.
+
+## Project layout
+
+```
+server/
+├── src/
+│   ├── app.ts                 # Express app, routes, error handling
+│   ├── index.ts               # Starts the server
+│   ├── cli.ts                 # `npm run scan -- domain`
+│   ├── config.ts              # Env validation (zod)
+│   ├── types.ts               # Report types (mirrors the frontend)
+│   ├── lib/                   # target validation, safeFetch, ip, dns, doh, finding helpers
+│   ├── checks/                # tls, headers, dns, email, exposure
+│   └── services/              # scan orchestrator, ownership verification
+└── tests/                     # vitest + supertest (no network needed)
+```
+
+## Next steps
+
+- Persist users, domains, scans and findings in Supabase PostgreSQL, with Supabase Auth
+- Bind verification tokens to user accounts
+- Stream scan progress to the Scan screen (Server-Sent Events)
+- PDF report generation and scheduled re-scans

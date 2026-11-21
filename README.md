@@ -15,7 +15,10 @@ WebExpoSyn lets individuals and businesses check how securely their websites are
 
 > **Key design decision:** WebExpoSyn never tells you your site is "85% secure." Every report shows exactly **what was tested**, **what passed**, **what failed** and **what could not be verified**.
 
-This repository contains the **frontend** (React + TypeScript + Vite + Tailwind CSS). It currently runs on sample data so the UI can be developed before the scanning backend exists.
+This repository contains:
+
+- **Frontend** (repo root): React + TypeScript + Vite + Tailwind CSS. It currently renders sample data.
+- **Backend API** ([`server/`](server/README.md)): Node.js + Express + TypeScript with SSRF-safe target validation and the security engine (SSL/TLS, headers, DNS, email and gated exposure checks).
 
 ## Screens
 
@@ -54,27 +57,37 @@ This repository contains the **frontend** (React + TypeScript + Vite + Tailwind 
 | lucide-react | Icons |
 | shadcn/ui conventions | Component patterns |
 
-**Planned:** Node.js + Express + TypeScript backend (scan orchestration, validation, auth), Supabase PostgreSQL and Supabase Auth, OpenSSL and Node.js `dns` for the security engine, hosting on Cloudflare Pages, Netlify or Vercel.
+**Backend:** Node.js + Express 5 + TypeScript, zod validation, helmet, express-rate-limit, Node `tls` and `dns` for the security engine, vitest + supertest for tests.
+
+**Planned:** Supabase PostgreSQL and Supabase Auth, hosting on Cloudflare Pages, Netlify or Vercel (frontend) and Render, Railway or Fly (API).
 
 ## Getting started
 
+### Frontend
+
 ```bash
-# 1. Install dependencies
 npm install
-
-# 2. Start the dev server (http://localhost:5173)
-npm run dev
-
-# 3. Production build
-npm run build
-npm run preview
+npm run dev          # http://localhost:5173
+npm run build        # production build
 ```
 
-Requires Node.js 18 or newer.
+### Backend API
+
+```bash
+cd server
+cp .env.example .env # set VERIFICATION_SECRET
+npm install
+npm run dev          # http://localhost:4000
+npm test             # 73 tests, no network needed
+npm run scan -- yourdomain.com   # scan from the terminal
+```
+
+Requires Node.js 20 or newer. See [server/README.md](server/README.md) for the API reference and safety controls.
 
 ## Project structure
 
 ```
+server/                  # Express API + security engine (see server/README.md)
 src/
 ├── assets/              # Logo, background images, module illustrations
 ├── components/
@@ -119,9 +132,10 @@ These are requirements, not options, for building a responsible security product
 ## Roadmap
 
 - [x] UI design and frontend screens
-- [ ] Express + TypeScript API with SSRF-safe URL validation
-- [ ] Security engine: TLS, headers, DNS, email checks
-- [ ] Controlled exposure checks behind ownership verification
+- [x] Express + TypeScript API with SSRF-safe URL validation
+- [x] Security engine: TLS, headers, DNS, email checks
+- [x] Controlled exposure checks behind ownership verification (DNS TXT)
+- [ ] Connect the frontend screens to the API
 - [ ] Supabase auth and persistence (users, domains, findings, reports)
 - [ ] PDF report generation and scheduled monitoring
 
