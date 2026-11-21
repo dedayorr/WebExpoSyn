@@ -9,11 +9,15 @@ import { TargetValidationError, parseDomain, parseTarget } from './lib/target.js
 import { TargetThrottle } from './lib/targetThrottle.js'
 import { defaultVerifier, requireAuth, type TokenVerifier } from './middleware/auth.js'
 import { runScan, type ScanOptions } from './services/scan.js'
+import { defaultStore, isUuid, type ScanStore } from './services/store.js'
 import { isOwnershipVerified, verificationInstructions } from './services/verification.js'
 
 export interface AppDeps {
   scan?: (url: string, opts: ScanOptions) => ReturnType<typeof runScan>
-  verify?: (domain: string) => Promise<boolean>
+  /** Checks the DNS TXT record for this user's token. */
+  verify?: (domain: string, userId: string) => Promise<boolean>
+  /** null disables saving (no secret key configured). */
+  store?: ScanStore | null
   /** null disables auth (development only). */
   verifier?: TokenVerifier | null
   maxConcurrentScans?: number
@@ -39,7 +43,8 @@ const userOrIpKey = (req: Request) => (req.user ? `user:${req.user.id}` : `ip:${
 
 export function createApp(deps: AppDeps = {}) {
   const scan = deps.scan ?? runScan
-  const verify = deps.verify ?? ((d: string) => isOwnershipVerified(d))
+  const verify = deps.verify ?? ((d: string, userId: string) => isOwnershipVerified(d, userId))
+  const store = deps.store !== undefined ? deps.store : defaultStore()
   const verifier = deps.verifier !== undefined ? deps.verifier : defaultVerifier()
   const maxConcurrent = deps.maxConcurrentScans ?? config.MAX_CONCURRENT_SCANS
   const scanTimeoutMs = deps.scanTimeoutMs ?? config.SCAN_TIMEOUT_MS
@@ -120,7 +125,11 @@ export function createApp(deps: AppDeps = {}) {
     // The slot is held until the scan really finishes, even if we stop waiting.
     activeScans++
     const started = Date.now()
-    const work = scan(body.url, { dkimSelectors: body.dkimSelectors })
+    const userId = req.user!.id
+    const work = scan(body.url, {
+      dkimSelectors: body.dkimSelectors,
+      verifyOwnership: (domain) => verify(domain, userId),
+    })
     work.finally(() => activeScans--).catch(() => {})
 
     let timer: NodeJS.Timeout | undefined
@@ -136,7 +145,18 @@ export function createApp(deps: AppDeps = {}) {
         fail: report.summary.fail,
         ownershipVerified: report.ownershipVerified,
       })
-      res.json(report)
+      // Save to the user's history. A storage failure must not lose the
+      // result: the client keeps unsaved reports locally instead.
+      let persisted = false
+      if (store && isUuid(userId)) {
+        try {
+          await store.saveScan(userId, report)
+          persisted = true
+        } catch (err) {
+          logEvent('scan.persist_failed', { ...who, target: hostname, reason: err instanceof Error ? err.message : 'unknown' })
+        }
+      }
+      res.json({ ...report, persisted })
     } catch (err) {
       if (err instanceof ScanTimeoutError) {
         logEvent('scan.timeout', { ...who, target: hostname })
@@ -157,15 +177,21 @@ export function createApp(deps: AppDeps = {}) {
   /** Get the TXT record a user must add to prove they own a domain. */
   app.get('/api/verification/:domain', auth, verificationLimiter, (req, res) => {
     const domain = parseDomain(String(req.params.domain))
-    res.json(verificationInstructions(domain))
+    res.json(verificationInstructions(domain, req.user!.id))
   })
 
   /** Check whether the TXT record is in place. */
   app.post('/api/verification/check', auth, verificationLimiter, async (req, res) => {
     const { domain: raw } = domainBody.parse(req.body)
     const domain = parseDomain(raw)
-    const verified = await verify(domain)
-    logEvent('verification.checked', { ip: req.ip, user: req.user?.id, domain, verified })
+    const userId = req.user!.id
+    const verified = await verify(domain, userId)
+    if (verified && store && isUuid(userId)) {
+      await store.markVerified(userId, domain).catch((err: unknown) =>
+        logEvent('verification.persist_failed', { user: userId, domain, reason: err instanceof Error ? err.message : 'unknown' }),
+      )
+    }
+    logEvent('verification.checked', { ip: req.ip, user: userId, domain, verified })
     res.json({ domain, verified })
   })
 

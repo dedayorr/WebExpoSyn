@@ -91,6 +91,15 @@ There was no record of who scanned what, rejected targets, rate-limit hits or fa
 - Until Supabase storage is added, reports are kept in the browser's localStorage, per user, capped at 25, and **cleared on sign-out**. Anyone with access to the device or an XSS bug could read them, so the strict CSP matters. Moving reports to Supabase with Row Level Security is the next step.
 - **Deploying:** add the API origin to `connect-src` in `public/_headers` / `vercel.json`, otherwise the browser will block scans.
 
+### Update: saved history in Supabase
+
+- **Who can write.** Only the API writes reports and verifications, using the server-only secret key (`SUPABASE_SECRET_KEY`), which bypasses RLS. That key must never reach the browser, git, chat or screenshots. The server refuses to start if a publishable key is put there by mistake.
+- **Who can read.** RLS policies allow signed-in users to `select` and `delete` only rows where `user_id = auth.uid()`. There are no insert or update policies, and `anon` has no grants, so users cannot forge a clean report or mark a domain as verified.
+- **Tested.** `server/tests/rls.test.ts` runs the real migration in embedded Postgres and checks 11 rules: cross-user reads and deletes, forging, editing, self-verification, anonymous access, tokens without a user id, cascade on account deletion and oversized reports.
+- **Per-account verification.** Tokens are `HMAC(secret, userId + ":" + domain)`, which fixes the cross-account reuse noted earlier. Ownership is still re-checked in DNS on every scan, so a domain that changes hands stops being verified.
+- **Bounded storage.** Reports are capped at 1 MB each and 200 per user.
+- **Local fallback.** If saving fails, the API still returns the report, marked `persisted: false`, and the browser keeps it locally until sign-out.
+
 ### Limitations
 
 These were not assessable from the repository: the deployed hosting and proxy configuration (including `TRUST_PROXY`), the Supabase project settings, egress firewall rules on the API host, and runtime behaviour against real websites. Rate-limit and throttle state is in memory; use a shared store (for example Redis) if you run more than one API instance.
@@ -101,4 +110,4 @@ These were not assessable from the repository: the deployed hosting and proxy co
 2. Authentication → Policies (Pro plan): **Leaked password protection** on, and minimum password length 10.
 3. Authentication → Attack protection: enable **CAPTCHA** (hCaptcha or Cloudflare Turnstile).
 4. Authentication → URL configuration: set the Site URL and add `/login` and `/reset-password` to the allowed redirect URLs. Do not use wildcards on production domains.
-5. Turn on Row Level Security for every table you add.
+5. Run the migration in `supabase/migrations/`. It enables RLS on every table it creates; keep RLS on for any table you add later.

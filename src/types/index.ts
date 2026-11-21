@@ -86,6 +86,8 @@ export interface ScanReport {
   }
   modules: ModuleResult[]
   findings: Finding[]
+  /** True when the API saved the report to the user's history. */
+  persisted?: boolean
 }
 
 export interface VerificationInstructions {

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { ArrowRight, Check, Download, Globe, KeyRound, LogOut, Menu, Plus, Radar, X } from 'lucide-react'
+import { AlertTriangle, ArrowRight, Check, Download, Globe, KeyRound, Loader2, LogOut, Menu, Plus, Radar, X } from 'lucide-react'
 import { Logo } from '@/components/layout/Logo'
 import { SeverityBadge } from '@/components/ui/badges'
 import { Button, buttonVariants } from '@/components/ui/button'
@@ -17,7 +17,7 @@ const issueIds = (r?: ScanReport) => new Set(r?.findings.filter((f) => f.status 
 export default function Dashboard() {
   const { user, signOut } = useAuth()
   const navigate = useNavigate()
-  const { reports } = useReports()
+  const { reports, verifiedDomains, loading, error } = useReports()
   const [drawerOpen, setDrawerOpen] = useState(false)
 
   const hostnames = useMemo(() => Array.from(new Set(reports.map((r) => r.target.hostname))), [reports])
@@ -129,7 +129,7 @@ export default function Dashboard() {
       <aside aria-label="Main navigation" className="animate-slide-right hidden flex-[0_0_260px] border-r border-sky/10 bg-sidebar px-4 py-5.5 lg:block">
         <Logo tone="light" className="px-2 pb-6.5" />
         {nav()}
-        {latest && !latest.ownershipVerified && (
+        {latest && !latest.ownershipVerified && !verifiedDomains.has(latest.target.domain) && (
           <div className="mt-7 rounded-[14px] border border-periwinkle/30 bg-royal/20 p-4">
             <div className="flex items-center gap-2 text-sm font-semibold text-white">
               <KeyRound size={15} /> Verify ownership
@@ -185,7 +185,16 @@ export default function Dashboard() {
         </header>
 
         <main className="flex flex-col gap-5.5 p-[clamp(18px,3vw,36px)]">
-          {!latest ? <EmptyState firstName={(user?.user_metadata?.full_name as string | undefined)?.trim().split(/\s+/)[0]} /> : <Overview latest={latest} previous={previous} hostReports={hostReports} reports={reports} onPick={setSelected} />}
+          {error && (
+            <p role="alert" className="flex items-center gap-2.5 rounded-xl border border-warn/40 bg-warn/10 px-4 py-3 text-sm text-ink">
+              <AlertTriangle size={16} className="shrink-0 text-warn" /> {error}
+            </p>
+          )}
+          {loading && !latest ? (
+            <div className="grid place-items-center py-24" role="status" aria-label="Loading your scans">
+              <Loader2 className="animate-spin text-periwinkle" size={32} />
+            </div>
+          ) : !latest ? <EmptyState firstName={(user?.user_metadata?.full_name as string | undefined)?.trim().split(/\s+/)[0]} /> : <Overview latest={latest} previous={previous} hostReports={hostReports} reports={reports} verifiedDomains={verifiedDomains} onPick={setSelected} />}
         </main>
       </div>
     </div>
@@ -241,12 +250,14 @@ function Overview({
   previous,
   hostReports,
   reports,
+  verifiedDomains,
   onPick,
 }: {
   latest: ScanReport
   previous?: ScanReport
   hostReports: ScanReport[]
   reports: ScanReport[]
+  verifiedDomains: Set<string>
   onPick: (host: string) => void
 }) {
   const s = latest.summary
@@ -411,7 +422,10 @@ function Overview({
                         {r.target.hostname}
                       </button>
                     </td>
-                    <td className={cn('px-3 py-3.5', r.ownershipVerified ? 'text-pass' : 'text-warn')}>{r.ownershipVerified ? 'Verified' : 'Not verified'}</td>
+                    {(() => {
+                      const ok = r.ownershipVerified || verifiedDomains.has(r.target.domain)
+                      return <td className={cn('px-3 py-3.5', ok ? 'text-pass' : 'text-warn')}>{ok ? 'Verified' : 'Not verified'}</td>
+                    })()}
                     <td className="px-3 py-3.5 text-muted">{formatDate(r.completedAt, false)}</td>
                     <td className="px-3 py-3.5 text-fail">{r.summary.fail + r.summary.warn}</td>
                   </tr>

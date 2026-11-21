@@ -1,9 +1,9 @@
 import type { ScanReport } from '@/types'
 
 /**
- * Temporary local storage for scan reports, kept per signed-in user, until
- * reports are saved in Supabase (the next build step). Cleared on sign-out
- * so reports don't linger on shared computers.
+ * Local fallback storage for scan reports, per signed-in user. Used when the
+ * API couldn't save a report to Supabase, or in the dev preview without
+ * Supabase. Cleared on sign-out so reports don't linger on shared computers.
  */
 const PREFIX = 'wxs:reports:'
 const MAX_REPORTS = 25
@@ -33,6 +33,23 @@ export function saveReport(userId: string, report: ScanReport) {
       /* give up silently; the report is still shown in memory */
     }
   }
+  window.dispatchEvent(new Event(EVENT))
+}
+
+export function removeReport(userId: string, id: string) {
+  try {
+    const current = loadReports(userId)
+    const next = current.filter((r) => r.id !== id)
+    if (next.length === 0) localStorage.removeItem(key(userId))
+    else if (next.length !== current.length) localStorage.setItem(key(userId), JSON.stringify(next))
+  } catch {
+    /* ignore */
+  }
+  window.dispatchEvent(new Event(EVENT))
+}
+
+/** Ask every useReports() hook to reload (e.g. after the API saved a scan). */
+export function notifyReportsChanged() {
   window.dispatchEvent(new Event(EVENT))
 }
 

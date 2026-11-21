@@ -2,6 +2,7 @@ import request from 'supertest'
 import { describe, expect, it } from 'vitest'
 import { createApp, type AppDeps } from '../src/app.js'
 import type { TokenVerifier } from '../src/middleware/auth.js'
+import type { ScanStore } from '../src/services/store.js'
 import { runScan } from '../src/services/scan.js'
 import type { Finding } from '../src/types.js'
 
@@ -38,14 +39,31 @@ const fakeScan: NonNullable<AppDeps['scan']> = (url, opts) =>
   })
 
 const TOKEN = 'header.payload.signature'
+const USER_ID = '11111111-1111-1111-1111-111111111111'
 const fakeVerifier: TokenVerifier = async (token) => {
   if (token !== TOKEN) throw new Error('bad token')
-  return { id: 'user-1', email: 'dayo@example.com' }
+  return { id: USER_ID, email: 'dayo@example.com' }
 }
 
 /** App with auth on (fake verifier) and generous limits unless overridden. */
 const makeApp = (deps: AppDeps = {}) =>
-  createApp({ scan: fakeScan, verifier: fakeVerifier, targetScansPerWindow: 100, ...deps })
+  createApp({ scan: fakeScan, verifier: fakeVerifier, targetScansPerWindow: 100, store: null, ...deps })
+
+/** In-memory store that records what the API saved. */
+function memoryStore(opts: { fail?: boolean } = {}) {
+  const saved: { userId: string; reportId: string; hostname: string }[] = []
+  const verified: { userId: string; domain: string }[] = []
+  const store: ScanStore = {
+    async saveScan(userId, report) {
+      if (opts.fail) throw new Error('database unavailable')
+      saved.push({ userId, reportId: report.id, hostname: report.target.hostname })
+    },
+    async markVerified(userId, domain) {
+      verified.push({ userId, domain })
+    },
+  }
+  return { store, saved, verified }
+}
 
 const authed = (req: request.Test) => req.set('Authorization', `Bearer ${TOKEN}`)
 
@@ -196,5 +214,55 @@ describe('API', () => {
   it('rejects oversized bodies', async () => {
     const res = await authed(request(makeApp()).post('/api/scans')).send({ url: 'a.com', pad: 'x'.repeat(20_000) })
     expect(res.status).toBe(400)
+  })
+
+  describe('saving history', () => {
+    it("saves each scan to the signed-in user's history", async () => {
+      const mem = memoryStore()
+      const res = await authed(request(makeApp({ store: mem.store })).post('/api/scans')).send({ url: 'shop.com' })
+      expect(res.status).toBe(200)
+      expect(res.body.persisted).toBe(true)
+      expect(mem.saved).toEqual([{ userId: USER_ID, reportId: res.body.id, hostname: 'shop.com' }])
+    })
+
+    it('still returns the report if saving fails', async () => {
+      const mem = memoryStore({ fail: true })
+      const res = await authed(request(makeApp({ store: mem.store })).post('/api/scans')).send({ url: 'shop.com' })
+      expect(res.status).toBe(200)
+      expect(res.body.persisted).toBe(false)
+      expect(res.body.findings.length).toBeGreaterThan(0)
+    })
+
+    it('reports persisted: false when no store is configured', async () => {
+      const res = await authed(request(makeApp()).post('/api/scans')).send({ url: 'shop.com' })
+      expect(res.body.persisted).toBe(false)
+    })
+
+    it('checks ownership for the signed-in user only', async () => {
+      const seen: string[] = []
+      const app = makeApp({
+        verify: async (_domain, userId) => {
+          seen.push(userId)
+          return true
+        },
+      })
+      await authed(request(app).post('/api/verification/check')).send({ domain: 'shop.com' })
+      expect(seen).toEqual([USER_ID])
+    })
+
+    it('records a successful verification', async () => {
+      const mem = memoryStore()
+      const app = makeApp({ store: mem.store, verify: async () => true })
+      const res = await authed(request(app).post('/api/verification/check')).send({ domain: 'www.shop.com' })
+      expect(res.body).toEqual({ domain: 'shop.com', verified: true })
+      expect(mem.verified).toEqual([{ userId: USER_ID, domain: 'shop.com' }])
+    })
+
+    it('does not record a failed verification', async () => {
+      const mem = memoryStore()
+      const app = makeApp({ store: mem.store, verify: async () => false })
+      await authed(request(app).post('/api/verification/check')).send({ domain: 'shop.com' })
+      expect(mem.verified).toEqual([])
+    })
   })
 })

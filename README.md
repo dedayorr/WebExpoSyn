@@ -17,7 +17,8 @@ WebExpoSyn lets individuals and businesses check how securely their websites are
 
 This repository contains:
 
-- **Frontend** (repo root): React + TypeScript + Vite + Tailwind CSS, connected to the API. Scan results are kept on your device per account until Supabase storage is added.
+- **Frontend** (repo root): React + TypeScript + Vite + Tailwind CSS, connected to the API. Scan history and verified domains are saved to your account in Supabase.
+- **Database** ([`supabase/migrations/`](supabase/migrations)): Postgres tables with Row Level Security. Users can read and delete only their own data; only the API can write reports.
 - **Backend API** ([`server/`](server/README.md)): Node.js + Express + TypeScript with SSRF-safe target validation and the security engine (SSL/TLS, headers, DNS, email and gated exposure checks).
 
 ## Screens
@@ -79,6 +80,11 @@ npm run dev          # http://localhost:5173
 npm run build        # production build
 ```
 
+### Database (Supabase)
+
+1. In your Supabase project open **SQL Editor → New query**, paste the contents of `supabase/migrations/20261121180000_scans_and_domains.sql` and click **Run**.
+2. Copy the **secret key** (Project Settings → API Keys → Secret keys, `sb_secret_...`) into `server/.env` as `SUPABASE_SECRET_KEY`. It is server-only: never put it in the frontend `.env.local`.
+
 ### Backend API
 
 ```bash
@@ -86,7 +92,7 @@ cd server
 cp .env.example .env # set VERIFICATION_SECRET + SUPABASE_URL
 npm install
 npm run dev          # http://localhost:4000
-npm test             # 89 tests, no network needed
+npm test             # 115 tests incl. database security, no network needed
 npm run scan -- yourdomain.com   # scan from the terminal
 ```
 
@@ -150,8 +156,8 @@ These are requirements, not options, for building a responsible security product
 - [x] Connect the Scan, Dashboard and Report screens to the API (real results, verification flow, report download)
 - [x] Login, sign-up and password reset (Supabase Auth) + API token verification
 - [x] Security audit (OWASP Top 10:2025) and fixes
-- [ ] Supabase persistence (domains, findings, reports) with Row Level Security
-- [ ] PDF report generation and scheduled monitoring
+- [x] Supabase persistence (scan history, verified domains) with Row Level Security, tested in embedded Postgres
+- [ ] PDF report generation and scheduled re-scans (monitoring)
 
 ## Credits
 

@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
-import { ArrowLeft, Check, ChevronDown, Download, FileSearch, Printer, RotateCcw } from 'lucide-react'
+import { ArrowLeft, Check, ChevronDown, Download, FileSearch, Loader2, Printer, RotateCcw, Trash2 } from 'lucide-react'
 import { AppHeader } from '@/components/layout/AppHeader'
 import { VerifyOwnership } from '@/components/report/VerifyOwnership'
 import { SeverityBadge, StatusBadge } from '@/components/ui/badges'
 import { Button, buttonVariants } from '@/components/ui/button'
-import { useReports } from '@/hooks/useReports'
+import { useReport } from '@/hooks/useReports'
+import { notifyReportsChanged } from '@/lib/reportStore'
 import { MODULE_LABELS, MODULE_ORDER, MODULE_SHORT, formatDate } from '@/lib/modules'
 import { cn } from '@/lib/utils'
 import type { CheckStatus, ModuleId, ScanReport } from '@/types'
@@ -19,9 +20,16 @@ const chip =
 export default function Report() {
   const [params] = useSearchParams()
   const navigate = useNavigate()
-  const { reports } = useReports()
   const id = params.get('id')
-  const report = id ? reports.find((r) => r.id === id) : reports[0]
+  const { report, loading, deleteReport, verifiedDomains } = useReport(id)
+
+  if (loading && !report) {
+    return (
+      <div className="grid min-h-screen place-items-center bg-navy" role="status" aria-label="Loading report">
+        <Loader2 className="animate-spin text-periwinkle" size={32} />
+      </div>
+    )
+  }
 
   if (!report) {
     return (
@@ -35,7 +43,7 @@ export default function Report() {
           <FileSearch size={40} className="text-periwinkle" />
           <h1 className="mt-4 text-2xl font-bold text-white">{id ? 'Report not found' : 'No reports yet'}</h1>
           <p className="mt-2 text-muted">
-            {id ? 'This report is no longer stored on this device.' : 'Run your first assessment to see a full report here.'}
+            {id ? 'This report was deleted or belongs to another account.' : 'Run your first assessment to see a full report here.'}
           </p>
           <Button className="mt-7" onClick={() => navigate('/scan')}>
             Start a scan
@@ -44,10 +52,34 @@ export default function Report() {
       </div>
     )
   }
-  return <ReportView key={report.id} report={report} initialModule={params.get('module')} />
+  return (
+    <ReportView
+      key={report.id}
+      report={report}
+      initialModule={params.get('module')}
+      domainVerified={verifiedDomains.has(report.target.domain)}
+      onDelete={async () => {
+        await deleteReport(report.id)
+        navigate('/dashboard', { replace: true })
+      }}
+    />
+  )
 }
 
-function ReportView({ report, initialModule }: { report: ScanReport; initialModule: string | null }) {
+function ReportView({
+  report,
+  initialModule,
+  domainVerified,
+  onDelete,
+}: {
+  report: ScanReport
+  initialModule: string | null
+  domainVerified: boolean
+  onDelete: () => Promise<void>
+}) {
+  const [confirmDelete, setConfirmDelete] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
   const validModule = MODULE_ORDER.includes(initialModule as ModuleId) ? (initialModule as ModuleId) : 'all'
   const [status, setStatus] = useState<StatusFilter>('issues')
   const [module, setModule] = useState<ModuleFilter>(validModule)
@@ -133,6 +165,31 @@ function ReportView({ report, initialModule }: { report: ScanReport; initialModu
           <Button size="sm" onClick={downloadJson}>
             <Download size={16} /> Download
           </Button>
+          {confirmDelete ? (
+            <Button
+              size="sm"
+              className="bg-fail text-[#2a0c08] hover:bg-fail"
+              disabled={deleting}
+              onClick={async () => {
+                setDeleting(true)
+                setDeleteError(null)
+                try {
+                  await onDelete()
+                } catch (err) {
+                  setDeleteError(err instanceof Error ? err.message : 'Could not delete the report.')
+                  setDeleting(false)
+                  setConfirmDelete(false)
+                }
+              }}
+              onBlur={() => !deleting && setConfirmDelete(false)}
+            >
+              {deleting ? <Loader2 size={15} className="animate-spin" /> : <Trash2 size={15} />} Confirm delete
+            </Button>
+          ) : (
+            <Button size="sm" variant="light" aria-label="Delete report" title="Delete report" onClick={() => setConfirmDelete(true)}>
+              <Trash2 size={15} />
+            </Button>
+          )}
         </AppHeader>
       </div>
 
@@ -161,9 +218,20 @@ function ReportView({ report, initialModule }: { report: ScanReport; initialModu
           </p>
         )}
 
-        {!report.ownershipVerified && (
+        {deleteError && <p role="alert" className="mt-4 rounded-xl border border-fail/40 bg-fail/10 px-4 py-3 text-sm text-ink">{deleteError}</p>}
+
+        {!report.ownershipVerified && domainVerified && (
+          <p className="mt-6 rounded-xl border border-pass/40 bg-pass/10 px-4 py-3 text-sm text-ink print:hidden">
+            You've verified {report.target.domain}. <Link to={`/scan?url=${encodeURIComponent(report.target.url)}`} className="font-semibold text-pass underline-offset-2 hover:underline">Rescan</Link> to include the exposure checks.
+          </p>
+        )}
+
+        {!report.ownershipVerified && !domainVerified && (
           <div className="mt-6 print:hidden">
-            <VerifyOwnership domain={report.target.domain} onVerified={() => showToast('Verified. Rescan to run exposure checks.')} />
+            <VerifyOwnership domain={report.target.domain} onVerified={() => {
+                showToast('Verified. Rescan to run exposure checks.')
+                notifyReportsChanged()
+              }} />
           </div>
         )}
 

@@ -54,17 +54,28 @@ describe('runExposureChecks', () => {
 
 describe('ownership verification', () => {
   const secret = 'test-secret-1234567890'
+  const userA = '11111111-1111-1111-1111-111111111111'
+  const userB = '22222222-2222-2222-2222-222222222222'
 
-  it('derives a stable token per domain', () => {
-    expect(verificationToken('shop.com', secret)).toBe(verificationToken('SHOP.com', secret))
-    expect(verificationToken('shop.com', secret)).not.toBe(verificationToken('other.com', secret))
+  it('derives a stable token per user and domain', () => {
+    expect(verificationToken('shop.com', userA, secret)).toBe(verificationToken('SHOP.com', userA, secret))
+    expect(verificationToken('shop.com', userA, secret)).not.toBe(verificationToken('other.com', userA, secret))
+  })
+
+  it('gives each user a different token for the same domain', () => {
+    expect(verificationToken('shop.com', userA, secret)).not.toBe(verificationToken('shop.com', userB, secret))
   })
 
   it('verifies when the TXT record is on the root or _webexposyn host', async () => {
-    const token = verificationToken('shop.com', secret)
-    expect(await isOwnershipVerified('shop.com', fakeDns({ txt: { 'shop.com': [token] } }), secret)).toBe(true)
-    expect(await isOwnershipVerified('shop.com', fakeDns({ txt: { '_webexposyn.shop.com': [token] } }), secret)).toBe(true)
-    expect(await isOwnershipVerified('shop.com', fakeDns({ txt: { 'shop.com': ['webexposyn-verify=wrong'] } }), secret)).toBe(false)
+    const token = verificationToken('shop.com', userA, secret)
+    expect(await isOwnershipVerified('shop.com', userA, fakeDns({ txt: { 'shop.com': [token] } }), secret)).toBe(true)
+    expect(await isOwnershipVerified('shop.com', userA, fakeDns({ txt: { '_webexposyn.shop.com': [token] } }), secret)).toBe(true)
+    expect(await isOwnershipVerified('shop.com', userA, fakeDns({ txt: { 'shop.com': ['webexposyn-verify=wrong'] } }), secret)).toBe(false)
+  })
+
+  it("does not accept another user's TXT record", async () => {
+    const tokenA = verificationToken('shop.com', userA, secret)
+    expect(await isOwnershipVerified('shop.com', userB, fakeDns({ txt: { 'shop.com': [tokenA] } }), secret)).toBe(false)
   })
 })
 

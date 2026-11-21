@@ -7,7 +7,6 @@ import { runTlsChecks } from '../checks/tls.js'
 import { errorMessage, makeFinding } from '../lib/finding.js'
 import { validateTarget, type LookupAll, type ResolvedTarget } from '../lib/target.js'
 import { MODULE_NAMES, type Finding, type ModuleId, type ModuleResult, type ScanReport, type Severity } from '../types.js'
-import { isOwnershipVerified } from './verification.js'
 
 export interface ScanOptions {
   dkimSelectors?: string[]
@@ -49,7 +48,9 @@ function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
 export async function runScan(input: string, opts: ScanOptions = {}): Promise<ScanReport> {
   const started = Date.now()
   const target = await validateTarget(input, opts.lookupAll)
-  const ownershipVerified = await (opts.verifyOwnership ?? isOwnershipVerified)(target.domain).catch(() => false)
+  // Ownership is per user, so the caller supplies the check. Without one
+  // (e.g. the CLI) the domain is treated as unverified and exposure checks stay off.
+  const ownershipVerified = opts.verifyOwnership ? await opts.verifyOwnership(target.domain).catch(() => false) : false
   const moduleTimeoutMs = opts.moduleTimeoutMs ?? 30_000
 
   const runners: Record<ModuleId, (t: ResolvedTarget, ctx: { ownershipVerified: boolean }) => Promise<Finding[]>> = {

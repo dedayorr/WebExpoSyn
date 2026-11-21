@@ -16,6 +16,8 @@ export type SecurityEvent =
   | 'scan.busy'
   | 'auth.failed'
   | 'verification.checked'
+  | 'verification.persist_failed'
+  | 'scan.persist_failed'
 
 export function logEvent(event: SecurityEvent, fields: Record<string, unknown> = {}) {
   if (process.env.NODE_ENV === 'test') return

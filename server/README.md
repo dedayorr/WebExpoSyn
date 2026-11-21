@@ -6,7 +6,7 @@ Node.js + Express + TypeScript backend for WebExpoSyn: scan orchestration, SSRF-
 
 ```bash
 cd server
-cp .env.example .env      # set VERIFICATION_SECRET and SUPABASE_URL
+cp .env.example .env      # set VERIFICATION_SECRET, SUPABASE_URL and SUPABASE_SECRET_KEY
                           # (or NODE_ENV=development + AUTH_MODE=disabled to try it without Supabase)
 npm install
 npm run dev               # http://localhost:4000
@@ -18,6 +18,7 @@ Scan from the terminal without starting the server:
 npm run scan -- yourdomain.com
 npm run scan -- yourdomain.com --dkim=google
 npm run scan -- yourdomain.com --out=report.json   # clean JSON file
+# The CLI has no signed-in user, so it never runs the ownership-gated exposure checks.
 ```
 
 Run the tests:
@@ -33,9 +34,9 @@ All routes except `/api/health` require `Authorization: Bearer <Supabase access 
 | Method | Route | Body | Returns |
 | --- | --- | --- | --- |
 | `GET` | `/api/health` | | `{ status }` |
-| `POST` | `/api/scans` | `{ url, dkimSelectors? }` | Full `ScanReport` (see `src/types.ts`) |
-| `GET` | `/api/verification/:domain` | | TXT record the owner must add |
-| `POST` | `/api/verification/check` | `{ domain }` | `{ domain, verified }` |
+| `POST` | `/api/scans` | `{ url, dkimSelectors? }` | Full `ScanReport` (see `src/types.ts`), saved to the user's history; `persisted` says whether saving worked |
+| `GET` | `/api/verification/:domain` | | TXT record the signed-in user must add (unique per account) |
+| `POST` | `/api/verification/check` | `{ domain }` | `{ domain, verified }`; records the verification on success |
 
 Errors always use `{ error: { code, message } }`:
 
@@ -88,6 +89,8 @@ These are enforced in code, not just documented:
 - **Per-target throttle**: any one hostname can be scanned at most 3 times per 10 minutes across all users, so the scanner can't be turned against a third party.
 - **Bounded work**: overall scan timeout (`504`), DNS lookup timeout, and a 12-query budget when walking SPF includes.
 - **Fail-closed config**: a verification secret of at least 32 characters is required, `NODE_ENV` defaults to production, and `CORS_ORIGINS="*"` is refused.
+- **Saved history**: reports are written only by the API with the server-side secret key. Users read and delete their own rows through Row Level Security and cannot insert, edit or self-verify (`tests/rls.test.ts` runs the real migration in embedded Postgres). History is capped at 200 scans per user.
+- **Per-account verification**: TXT tokens are an HMAC of user id + domain, so one user's verification never unlocks exposure checks for another.
 - **Security event log**: JSON lines for scans, rejected targets, rate limits and failed auth (no tokens or bodies).
 - **Controlled exposure checks.** A fixed list of 8 files, 4 folders and 4 subdomains, matched by content signature to avoid soft-404 false positives, with a delay between requests. Evidence is a safe description only (for example, variable names with values hidden), so reports never contain leaked secrets.
 - **Nothing is executed.** Responses are only read as text.
@@ -112,8 +115,6 @@ server/
 
 ## Next steps
 
-- Persist domains, scans and findings in Supabase PostgreSQL with Row Level Security
-- Bind verification tokens to user accounts
 - Move rate-limit and throttle state to Redis when running more than one instance
 - Stream scan progress to the Scan screen (Server-Sent Events)
 - PDF report generation and scheduled re-scans

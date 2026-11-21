@@ -39,7 +39,7 @@ export default function Scan() {
   const [params, setParams] = useSearchParams()
   const navigate = useNavigate()
   const { signOut } = useAuth()
-  const { save } = useReports()
+  const { addReport } = useReports()
 
   const urlParam = params.get('url')?.trim() ?? ''
   const dkimParam = params.get('dkim') ?? ''
@@ -76,7 +76,7 @@ export default function Scan() {
       .scan(urlParam, selectors)
       .then((report) => {
         if (started.current !== token) return
-        save(report)
+        addReport(report)
         setStep(STEPS.length)
         setPhase({ kind: 'done', report })
       })
@@ -90,7 +90,7 @@ export default function Scan() {
         }
         setPhase({ kind: 'error', error })
       })
-  }, [urlParam, dkimParam, runId, save, signOut, navigate])
+  }, [urlParam, dkimParam, runId, addReport, signOut, navigate])
 
   if (!urlParam) {
     return <ScanForm onSubmit={(url, dkim) => setParams(dkim ? { url, dkim } : { url })} />

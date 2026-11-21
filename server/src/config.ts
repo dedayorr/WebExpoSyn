@@ -18,6 +18,11 @@ const schema = z.object({
   SUPABASE_URL: z.string().url().optional(),
   /** Only for older Supabase projects that still sign tokens with HS256. */
   SUPABASE_JWT_SECRET: z.string().optional(),
+  /**
+   * Server-only Supabase secret key (sb_secret_... or legacy service_role).
+   * Lets the API save scans. Bypasses Row Level Security: never expose it.
+   */
+  SUPABASE_SECRET_KEY: z.string().optional(),
 })
 
 const parsed = schema.safeParse(process.env)
@@ -47,6 +52,15 @@ if (env.AUTH_MODE === 'disabled' && env.NODE_ENV !== 'development' && !isTest) {
 }
 if (env.AUTH_MODE === 'required' && !env.SUPABASE_URL && !isTest) {
   fatal('SUPABASE_URL is required when AUTH_MODE=required. For local development without Supabase set NODE_ENV=development and AUTH_MODE=disabled.')
+}
+
+if (env.SUPABASE_SECRET_KEY) {
+  if (env.SUPABASE_SECRET_KEY.startsWith('sb_publishable_')) {
+    fatal('SUPABASE_SECRET_KEY is set to a publishable key. Use the secret key (sb_secret_...) from Project Settings → API Keys.')
+  }
+  if (!env.SUPABASE_URL) fatal('SUPABASE_SECRET_KEY needs SUPABASE_URL to be set as well.')
+} else if (!isTest && env.AUTH_MODE === 'required') {
+  console.warn('Warning: SUPABASE_SECRET_KEY is not set, so scan history will not be saved.')
 }
 
 const corsOrigins = env.CORS_ORIGINS.split(',').map((o) => o.trim()).filter(Boolean)

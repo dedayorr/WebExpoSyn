@@ -65,6 +65,8 @@ export interface ScanReport {
   }
   modules: ModuleResult[]
   findings: Finding[]
+  /** True when the report was saved to the user's history. */
+  persisted?: boolean
 }
 
 export const MODULE_NAMES: Record<ModuleId, string> = {
