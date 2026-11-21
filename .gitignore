@@ -22,3 +22,6 @@ pnpm-debug.log*
 .idea
 .DS_Store
 *.tsbuildinfo
+
+# scan output from `npm run scan -- ... --out=report.json`
+report*.json
