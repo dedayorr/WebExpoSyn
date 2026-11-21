@@ -17,7 +17,7 @@ export default function Landing() {
   useScrollReveal()
 
   return (
-    <div className="min-h-screen overflow-x-hidden bg-navy text-sky">
+    <div className="min-h-screen overflow-x-clip bg-navy text-sky">
       <SiteHeader />
       <main>
         <Hero />

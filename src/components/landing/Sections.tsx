@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom'
 import { ArrowRight, Check, CircleHelp, ListChecks, X } from 'lucide-react'
-import type { ReactNode } from 'react'
+import type { CSSProperties, ReactNode } from 'react'
 import { buttonVariants } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import responsibleBg from '@/assets/responsible-bg.jpg'
@@ -24,6 +24,9 @@ function SectionTitle({ children, className }: { children: ReactNode; className?
 }
 
 const card = 'rounded-[18px] border border-sky/12 bg-surface'
+
+/** Delays each card in a row slightly, so they cascade in one after another. */
+const stagger = (i: number) => ({ '--reveal-delay': `${i * 110}ms` }) as CSSProperties
 
 /* ---------- Module strip ---------- */
 
@@ -66,8 +69,8 @@ export function Principles() {
           </p>
         </div>
         <div className="mt-12 grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-4">
-          {principles.map(({ icon: Icon, tint, title, text }) => (
-            <div key={title} className={cn('reveal lift p-7', card)}>
+          {principles.map(({ icon: Icon, tint, title, text }, i) => (
+            <div key={title} className={cn('reveal lift p-7', card)} style={stagger(i)}>
               <div className={cn('flex h-12 w-12 items-center justify-center rounded-xl', tint)}>
                 <Icon size={24} />
               </div>
@@ -107,7 +110,7 @@ export function Modules() {
         </div>
         <div className="mt-12 grid grid-cols-[repeat(auto-fit,minmax(min(320px,100%),1fr))] gap-4.5">
           {modules.map((m, i) => (
-            <article key={m.title} className="reveal lift overflow-hidden rounded-[20px] border border-sky/12 bg-surface">
+            <article key={m.title} className="reveal lift overflow-hidden rounded-[20px] border border-sky/12 bg-surface" style={stagger(i % 3)}>
               <div className="relative aspect-video overflow-hidden border-b border-sky/10">
                 <img src={m.img} alt={m.alt} loading="lazy" className="zoom-img block h-full w-full object-cover" />
                 <span className="absolute top-3.5 left-3.5 rounded-lg bg-navy/85 px-2.5 py-1 font-mono text-xs text-sky">
@@ -151,7 +154,7 @@ export function HowItWorks() {
         </div>
         <ol className="mt-14 grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-4">
           {steps.map((s, i) => (
-            <li key={s.title} className={cn('reveal rounded-2xl p-6', card)}>
+            <li key={s.title} className={cn('reveal rounded-2xl p-6', card)} style={stagger(i)}>
               <div className="font-display text-[40px] font-bold text-royal [-webkit-text-stroke:1px_#7692FF]">{i + 1}</div>
               <h3 className="mt-3 text-lg text-white">{s.title}</h3>
               <p className="mt-2 text-sm leading-relaxed text-muted">{s.text}</p>
@@ -180,7 +183,7 @@ export function SampleFinding() {
             See a sample report <ArrowRight size={18} />
           </Link>
         </div>
-        <div className="reveal reveal-right min-w-0 flex-[1_1_520px] overflow-hidden rounded-[20px] border border-sky/15 bg-surface">
+        <div className="reveal reveal-right min-w-0 flex-[1_1_520px] overflow-hidden rounded-[20px] border border-sky/15 bg-surface" style={stagger(1)}>
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-sky/10 px-6.5 py-5.5">
             <div>
               <div className="font-display text-xl font-semibold text-white">Content Security Policy</div>
@@ -239,7 +242,7 @@ export function Audience() {
               ))}
             </div>
           </div>
-          <div className="reveal reveal-right lift rounded-[22px] border border-sky/20 bg-[linear-gradient(160deg,#1B2CC1,#12207f)] p-9">
+          <div className="reveal reveal-right lift rounded-[22px] border border-sky/20 bg-[linear-gradient(160deg,#1B2CC1,#12207f)] p-9" style={stagger(1)}>
             <h3 className="text-[26px] text-white">Businesses</h3>
             <p className="mt-3 text-base leading-relaxed text-ink">
               Assess before a launch, then monitor whether your security configuration has slipped over time.
