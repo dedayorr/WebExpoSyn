@@ -29,7 +29,18 @@ export function evidence(...lines: (string | undefined | null | false)[]): strin
   return lines.filter(Boolean).join('\n')
 }
 
+/**
+ * Short, readable reason for evidence lines. Handles Node errno codes,
+ * fetch() failures (code on `cause`) and AbortSignal timeouts, whose
+ * DOMException `code` is the unhelpful number 23.
+ */
 export function errorMessage(err: unknown): string {
-  if (err instanceof Error) return (err as NodeJS.ErrnoException).code ?? err.message
+  if (err && typeof err === 'object') {
+    const e = err as { name?: string; code?: unknown; message?: string; cause?: { code?: unknown; message?: string } }
+    if (e.name === 'TimeoutError' || e.name === 'AbortError') return 'timed out'
+    if (typeof e.code === 'string') return e.code
+    if (typeof e.cause?.code === 'string') return e.cause.code
+    if (e.message) return e.message
+  }
   return String(err)
 }

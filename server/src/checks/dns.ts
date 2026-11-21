@@ -16,7 +16,9 @@ export interface DnsCheckDeps {
 /** Module 3: DNS security analysis for the registrable domain. */
 export async function runDnsChecks(domain: string, hostname: string, deps: DnsCheckDeps = {}): Promise<Finding[]> {
   const client = deps.client ?? createDnsClient()
-  const clientFor = deps.clientFor ?? ((ip: string) => createDnsClient([ip]))
+  // Direct queries to authoritative servers get a longer timeout and more
+  // retries: a single dropped UDP packet shouldn't make the check inconclusive.
+  const clientFor = deps.clientFor ?? ((ip: string) => createDnsClient([ip], 4_000, 3))
   const doh = deps.doh ?? dohQuery
   const out: Finding[] = []
 
@@ -81,8 +83,17 @@ export async function runDnsChecks(domain: string, hostname: string, deps: DnsCh
         try {
           const ips = (await client.resolve4(server)).filter(isPublicIp)
           if (!ips.length) return { server, error: 'no public address' }
-          const soa = await clientFor(ips[0]).resolveSoa(domain)
-          return { server, serial: soa.serial }
+          // Try up to two of the nameserver's addresses before giving up.
+          let lastErr: unknown
+          for (const ip of ips.slice(0, 2)) {
+            try {
+              const soa = await clientFor(ip).resolveSoa(domain)
+              return { server, serial: soa.serial }
+            } catch (err) {
+              lastErr = err
+            }
+          }
+          throw lastErr
         } catch (err) {
           return { server, error: errorMessage(err) }
         }

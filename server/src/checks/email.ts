@@ -137,6 +137,8 @@ export async function runEmailChecks(domain: string, opts: EmailCheckOptions = {
   ])
   const sendsMail = mx.length > 0
   const spfRecords = txt.filter((r) => /^v=spf1(\s|$)/i.test(r))
+  /** No MX and no SPF: the domain neither receives nor (declares that it) sends mail. */
+  const nonMailDomain = !sendsMail && spfRecords.length === 0
 
   // ---- SPF ----
   if (spfRecords.length === 0) {
@@ -275,7 +277,9 @@ export async function runEmailChecks(domain: string, opts: EmailCheckOptions = {
         severity: sendsMail || spfRecords.length ? 'high' : 'medium',
         found: `No DMARC record was found at _dmarc.${domain}.`,
         why: 'Without DMARC, receivers have no instruction to reject email that spoofs your domain, and you get no reports about abuse.',
-        action: `Start with: _dmarc.${domain} TXT "v=DMARC1; p=none; rua=mailto:dmarc@${domain}", review the reports, then move to quarantine and reject.`,
+        action: nonMailDomain
+          ? `This domain doesn't send email, so block all spoofing straight away: _dmarc.${domain} TXT "v=DMARC1; p=reject; sp=reject; adkim=s; aspf=s"`
+          : `Start with: _dmarc.${domain} TXT "v=DMARC1; p=none; rua=mailto:dmarc@${domain}", review the reports, then move to quarantine and reject.`,
         evidence: `_dmarc.${domain} TXT: (none)`,
       }),
     )
@@ -389,6 +393,9 @@ export async function runEmailChecks(domain: string, opts: EmailCheckOptions = {
         evidence: dkimEvidence,
       }),
     )
+  } else if (nonMailDomain) {
+    // DKIM only applies to domains that send email. Reporting it as "couldn't
+    // verify" here would be noise; the SPF and DMARC findings cover spoofing.
   } else {
     out.push(
       f({

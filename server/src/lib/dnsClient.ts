@@ -12,8 +12,8 @@ export interface DnsClient {
   resolveSoa(name: string): Promise<dns.SoaRecord>
 }
 
-export function createDnsClient(servers?: string[], timeoutMs = 3_000): DnsClient {
-  const resolver = new dns.promises.Resolver({ timeout: timeoutMs, tries: 2 })
+export function createDnsClient(servers?: string[], timeoutMs = 3_000, tries = 2): DnsClient {
+  const resolver = new dns.promises.Resolver({ timeout: timeoutMs, tries })
   if (servers?.length) resolver.setServers(servers)
   return resolver
 }

@@ -3,7 +3,9 @@
  *   npm run scan -- example.com
  *   npm run scan -- example.com --json
  *   npm run scan -- example.com --dkim=google
+ *   npm run scan -- example.com --out=report.json   (writes clean JSON to a file)
  */
+import { writeFileSync } from 'node:fs'
 import { TargetValidationError } from './lib/target.js'
 import { runScan } from './services/scan.js'
 
@@ -11,9 +13,10 @@ const args = process.argv.slice(2)
 const url = args.find((a) => !a.startsWith('--'))
 const json = args.includes('--json')
 const dkim = args.find((a) => a.startsWith('--dkim='))?.slice(7).split(',')
+const out = args.find((a) => a.startsWith('--out='))?.slice(6)
 
 if (!url) {
-  console.error('Usage: npm run scan -- <domain or url> [--json] [--dkim=selector1,selector2]')
+  console.error('Usage: npm run scan -- <domain or url> [--json] [--out=report.json] [--dkim=selector1,selector2]')
   process.exit(1)
 }
 
@@ -21,9 +24,13 @@ const icons = { pass: '✓', fail: '✗', warn: '!', unverified: '?' } as const
 
 try {
   const report = await runScan(url, { dkimSelectors: dkim })
+  if (out) {
+    writeFileSync(out, JSON.stringify(report, null, 2))
+    console.log(`Saved report to ${out}`)
+  }
   if (json) {
     console.log(JSON.stringify(report, null, 2))
-  } else {
+  } else if (!out) {
     const s = report.summary
     console.log(`\n${report.target.hostname} (${report.target.addresses.join(', ')}) in ${(report.durationMs / 1000).toFixed(1)}s`)
     console.log(`Ownership verified: ${report.ownershipVerified ? 'yes' : 'no'}`)

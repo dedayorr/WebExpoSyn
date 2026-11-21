@@ -102,3 +102,19 @@ describe('SPF lookup budget', () => {
     expect(queries).toBeLessThanOrEqual(12)
   })
 })
+
+describe('domains that do not send mail', () => {
+  it('skips DKIM noise and recommends p=reject', async () => {
+    const r = byId(await runEmailChecks('static.com', { client: fakeDns({}) }))
+    expect(r['email.dkim']).toBeUndefined()
+    expect(r['email.dmarc'].action).toContain('p=reject')
+    expect(r['email.spf'].severity).toBe('low')
+  })
+
+  it('still reports a DKIM key if one exists', async () => {
+    const r = byId(
+      await runEmailChecks('static.com', { client: fakeDns({ txt: { 'google._domainkey.static.com': ['v=DKIM1; k=rsa; p=MIIB'] } }) }),
+    )
+    expect(r['email.dkim'].status).toBe('pass')
+  })
+})

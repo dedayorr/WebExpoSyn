@@ -17,7 +17,7 @@ Scan from the terminal without starting the server:
 ```bash
 npm run scan -- yourdomain.com
 npm run scan -- yourdomain.com --dkim=google
-npm run scan -- yourdomain.com --json > report.json
+npm run scan -- yourdomain.com --out=report.json   # clean JSON file
 ```
 
 Run the tests:
