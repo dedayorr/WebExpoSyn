@@ -29,7 +29,7 @@ npm test
 
 ## API
 
-All routes except `/api/health` require `Authorization: Bearer <Supabase access token>`.
+All routes except `/api/health` and the Paystack webhook require `Authorization: Bearer <Supabase access token>`.
 
 | Method | Route | Body | Returns |
 | --- | --- | --- | --- |
@@ -37,6 +37,13 @@ All routes except `/api/health` require `Authorization: Bearer <Supabase access 
 | `POST` | `/api/scans` | `{ url, dkimSelectors? }` | Full `ScanReport` (see `src/types.ts`), saved to the user's history; `persisted` says whether saving worked |
 | `GET` | `/api/verification/:domain` | | TXT record the signed-in user must add (unique per account) |
 | `POST` | `/api/verification/check` | `{ domain }` | `{ domain, verified }`; records the verification on success |
+| `GET` | `/api/billing` | | Plan, status, websites used and the free limit |
+| `POST` | `/api/billing/checkout` | | `{ url }`: Paystack checkout for Pro |
+| `POST` | `/api/billing/verify` | `{ reference }` | Confirms a payment for the signed-in user, returns the plan |
+| `POST` | `/api/billing/manage` | | `{ url }`: Paystack page to update the card or cancel |
+| `POST` | `/api/billing/webhook` | Paystack event | Called by Paystack only; no bearer token, signature checked |
+
+`POST /api/scans` returns `402 PLAN_LIMIT` when a free account tries a website beyond its limit (`FREE_SITE_LIMIT`, default 3). Rescans of websites already in the user's history are always allowed.
 
 Errors always use `{ error: { code, message } }`:
 

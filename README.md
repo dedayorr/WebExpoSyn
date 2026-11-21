@@ -83,7 +83,17 @@ npm run build        # production build
 ### Database (Supabase)
 
 1. In your Supabase project open **SQL Editor → New query**, paste the contents of `supabase/migrations/20261121180000_scans_and_domains.sql` and click **Run**.
-2. Copy the **secret key** (Project Settings → API Keys → Secret keys, `sb_secret_...`) into `server/.env` as `SUPABASE_SECRET_KEY`. It is server-only: never put it in the frontend `.env.local`.
+2. Run `supabase/migrations/20261121200000_subscriptions.sql` the same way (plans and billing).
+3. Copy the **secret key** (Project Settings → API Keys → Secret keys, `sb_secret_...`) into `server/.env` as `SUPABASE_SECRET_KEY`. It is server-only: never put it in the frontend `.env.local`.
+
+### Payments (Paystack)
+
+Free accounts can scan 3 different websites (rescans are always free). Pro (₦5,000/month) removes the limit.
+
+1. In the Paystack dashboard (start in **Test mode**), go to **Products → Plans → Create plan**: amount ₦5,000, interval **Monthly**. Copy its plan code (`PLN_...`).
+2. **Settings → API Keys & Webhooks**: copy the **secret key** (`sk_test_...`) into `server/.env` as `PAYSTACK_SECRET_KEY`, and the plan code as `PAYSTACK_PLAN_CODE`. Set `APP_URL` to your frontend address.
+3. On the same page set the **Webhook URL** to `https://<your-api>/api/billing/webhook`. (Locally, Paystack can't reach `localhost`; the payment still confirms when Paystack sends you back to `/billing`. Use a tunnel such as `cloudflared` to test renewals and cancellations.)
+4. Pay with Paystack's test card to try it. Switch to the live key and a live plan only when going live.
 
 ### Backend API
 
@@ -92,7 +102,7 @@ cd server
 cp .env.example .env # set VERIFICATION_SECRET + SUPABASE_URL
 npm install
 npm run dev          # http://localhost:4000
-npm test             # 115 tests incl. database security, no network needed
+npm test             # 148 tests incl. database security and billing, no network needed
 npm run scan -- yourdomain.com   # scan from the terminal
 ```
 
@@ -157,7 +167,10 @@ These are requirements, not options, for building a responsible security product
 - [x] Login, sign-up and password reset (Supabase Auth) + API token verification
 - [x] Security audit (OWASP Top 10:2025) and fixes
 - [x] Supabase persistence (scan history, verified domains) with Row Level Security, tested in embedded Postgres
-- [ ] PDF report generation and scheduled re-scans (monitoring)
+- [x] PDF reports and comparison with the previous scan
+- [x] Free plan (3 websites) and Pro subscriptions via Paystack, enforced on the server
+- [ ] Scheduled re-scans (monitoring) and email alerts
+- [ ] Email breach check (Have I Been Pwned API)
 
 ## Credits
 

@@ -8,6 +8,8 @@ import { logEvent } from './lib/logger.js'
 import { TargetValidationError, parseDomain, parseTarget } from './lib/target.js'
 import { TargetThrottle } from './lib/targetThrottle.js'
 import { defaultVerifier, requireAuth, type TokenVerifier } from './middleware/auth.js'
+import { billingRouter, billingWebhook, type BillingDeps } from './routes/billing.js'
+import { defaultBillingStore, defaultPaystack, isPro, type BillingStore, type PaystackApi } from './services/billing.js'
 import { runScan, type ScanOptions } from './services/scan.js'
 import { defaultStore, isUuid, type ScanStore } from './services/store.js'
 import { isOwnershipVerified, verificationInstructions } from './services/verification.js'
@@ -20,6 +22,13 @@ export interface AppDeps {
   store?: ScanStore | null
   /** null disables auth (development only). */
   verifier?: TokenVerifier | null
+  /** Plans and usage. null disables plan limits (no secret key configured). */
+  billing?: BillingStore | null
+  /** null disables upgrading (no Paystack key configured). */
+  paystack?: PaystackApi | null
+  paystackSecretKey?: string
+  paystackPlanCode?: string
+  freeSiteLimit?: number
   maxConcurrentScans?: number
   scanRateLimit?: number
   targetScansPerWindow?: number
@@ -50,7 +59,12 @@ export function createApp(deps: AppDeps = {}) {
   const scanTimeoutMs = deps.scanTimeoutMs ?? config.SCAN_TIMEOUT_MS
   const throttle = new TargetThrottle(deps.targetScansPerWindow ?? config.TARGET_SCANS_PER_10_MIN, 10 * 60_000)
   const auth = requireAuth(verifier)
+  const billing = deps.billing !== undefined ? deps.billing : defaultBillingStore()
+  const paystack = deps.paystack !== undefined ? deps.paystack : defaultPaystack()
+  const siteLimit = deps.freeSiteLimit ?? config.FREE_SITE_LIMIT
   let activeScans = 0
+  /** New websites each user is scanning right now, so parallel requests can't slip past the limit. */
+  const pendingDomains = new Map<string, Set<string>>()
 
   const app = express()
   app.disable('x-powered-by')
@@ -65,6 +79,31 @@ export function createApp(deps: AppDeps = {}) {
       maxAge: 600,
     }),
   )
+  const billingLimiter = rateLimit({
+    windowMs: 15 * 60_000,
+    limit: 30,
+    standardHeaders: 'draft-7',
+    legacyHeaders: false,
+    keyGenerator: (req: Request) => (req.user ? `user:${req.user.id}` : `ip:${ipKeyGenerator(req.ip ?? '')}`),
+  })
+  const billingDeps: BillingDeps = {
+    auth,
+    limiter: billingLimiter,
+    store: billing,
+    paystack,
+    secretKey: deps.paystackSecretKey ?? config.PAYSTACK_SECRET_KEY,
+    planCode: deps.paystackPlanCode ?? config.PAYSTACK_PLAN_CODE,
+    siteLimit,
+    priceKobo: config.PRO_PRICE_KOBO,
+  }
+
+  // Paystack webhook needs the raw body for its signature, so it goes before express.json().
+  app.post(
+    '/api/billing/webhook',
+    rateLimit({ windowMs: 60_000, limit: 120, standardHeaders: 'draft-7', legacyHeaders: false }),
+    ...billingWebhook(billingDeps),
+  )
+
   app.use(express.json({ limit: '10kb' }))
 
   // General limiter for every API route
@@ -101,11 +140,43 @@ export function createApp(deps: AppDeps = {}) {
 
     // Cheap syntactic validation first, so rejected targets never use a slot.
     let hostname: string
+    let domain: string
     try {
-      hostname = parseTarget(body.url).hostname
+      ;({ hostname, domain } = parseTarget(body.url))
     } catch (err) {
       if (err instanceof TargetValidationError) logEvent('scan.rejected_target', { ...who, input: body.url, code: err.code })
       throw err
+    }
+
+    // Free plan: up to `siteLimit` different websites. Rescans of a site already in
+    // the user's history are always allowed. Fails closed if the plan can't be read.
+    const userId = req.user!.id
+    let pendingSet: Set<string> | undefined
+    if (billing && isUuid(userId)) {
+      let pro: boolean
+      let known: string[]
+      try {
+        const [sub, domains] = await Promise.all([billing.getSubscription(userId), billing.listScannedDomains(userId)])
+        pro = isPro(sub)
+        known = domains
+      } catch (err) {
+        logEvent('billing.usage_failed', { ...who, reason: err instanceof Error ? err.message : 'unknown' })
+        res.status(503).json({ error: { code: 'PLAN_CHECK_FAILED', message: 'We could not check your plan. Please try again in a minute.' } })
+        return
+      }
+      const pending = pendingDomains.get(userId) ?? new Set<string>()
+      const inUse = new Set([...known, ...pending])
+      if (!pro && !inUse.has(domain) && inUse.size >= siteLimit) {
+        logEvent('scan.plan_limit', { ...who, target: hostname, sitesUsed: inUse.size })
+        res.status(402).json({
+          error: {
+            code: 'PLAN_LIMIT',
+            message: `The free plan covers ${siteLimit} websites. Upgrade to Pro to scan more, or delete an old website's reports to free a slot.`,
+          },
+        })
+        return
+      }
+      if (!known.includes(domain)) pendingSet = pending
     }
 
     if (activeScans >= maxConcurrent) {
@@ -124,13 +195,24 @@ export function createApp(deps: AppDeps = {}) {
 
     // The slot is held until the scan really finishes, even if we stop waiting.
     activeScans++
+    if (pendingSet) {
+      pendingSet.add(domain)
+      pendingDomains.set(userId, pendingSet)
+    }
     const started = Date.now()
-    const userId = req.user!.id
     const work = scan(body.url, {
       dkimSelectors: body.dkimSelectors,
       verifyOwnership: (domain) => verify(domain, userId),
     })
-    work.finally(() => activeScans--).catch(() => {})
+    work
+      .finally(() => {
+        activeScans--
+        if (pendingSet) {
+          pendingSet.delete(domain)
+          if (pendingSet.size === 0) pendingDomains.delete(userId)
+        }
+      })
+      .catch(() => {})
 
     let timer: NodeJS.Timeout | undefined
     const timeout = new Promise<never>((_, reject) => {
@@ -194,6 +276,8 @@ export function createApp(deps: AppDeps = {}) {
     logEvent('verification.checked', { ip: req.ip, user: userId, domain, verified })
     res.json({ domain, verified })
   })
+
+  app.use('/api/billing', billingRouter(billingDeps))
 
   app.use('/api', (_req, res) => {
     res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Unknown API route.' } })

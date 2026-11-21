@@ -120,4 +120,42 @@ describe('Row Level Security', () => {
         values ('cccccccc-0000-0000-0000-000000000001','${A}','big.com','big.com','https://big.com/',now(),now(),1,'{}', jsonb_build_object('pad', '${big}'))`),
     ).rejects.toThrow()
   })
+
+  describe('subscriptions', () => {
+    beforeAll(async () => {
+      await db.exec(`insert into public.subscriptions (user_id, plan, status) values ('${A}', 'free', 'inactive')`)
+    })
+
+    it('a user can read their own subscription', async () => {
+      const r = await as('authenticated', A, 'select plan from public.subscriptions')
+      expect(r.rows).toEqual([{ plan: 'free' }])
+    })
+
+    it('a user cannot upgrade themselves to pro', async () => {
+      const r = await as('authenticated', A, `update public.subscriptions set plan = 'pro', status = 'active' where user_id = '${A}'`)
+      expect(r.ok).toBe(false)
+      const row = (await db.query(`select plan from public.subscriptions where user_id = '${A}'`)).rows[0] as { plan: string }
+      expect(row.plan).toBe('free')
+    })
+
+    it('a user cannot create a pro subscription row', async () => {
+      await db.exec(`insert into auth.users values ('33333333-3333-3333-3333-333333333333') on conflict do nothing`)
+      const r = await as(
+        'authenticated',
+        '33333333-3333-3333-3333-333333333333',
+        `insert into public.subscriptions (user_id, plan, status) values ('33333333-3333-3333-3333-333333333333', 'pro', 'active')`,
+      )
+      expect(r.ok).toBe(false)
+    })
+
+    it('billing events are invisible to users', async () => {
+      await db.exec(`insert into public.billing_events (id, event, user_id, payload) values ('evt1', 'charge.success', '${A}', '{}')`)
+      const r = await as('authenticated', A, 'select * from public.billing_events')
+      expect(r.ok && r.rows.length > 0).toBe(false)
+    })
+
+    it('rejects unknown plan values', async () => {
+      await expect(db.exec(`update public.subscriptions set plan = 'enterprise' where user_id = '${A}'`)).rejects.toThrow()
+    })
+  })
 })

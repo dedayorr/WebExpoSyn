@@ -266,6 +266,76 @@ export function Audience() {
   )
 }
 
+/* ---------- Pricing ---------- */
+
+const plans = [
+  {
+    name: 'Free',
+    price: '₦0',
+    blurb: 'For a portfolio, blog or a couple of client sites.',
+    features: ['3 websites, rescan them any time', 'All six security modules', 'PDF reports and scan comparison'],
+    cta: 'Start free',
+  },
+  {
+    name: 'Pro',
+    price: '₦5,000',
+    blurb: 'For agencies, stores and teams looking after many sites.',
+    features: ['Unlimited websites', 'All six security modules', 'PDF reports and scan comparison', 'Cancel any time'],
+    cta: 'Get Pro',
+  },
+]
+
+export function Pricing() {
+  return (
+    <section id="pricing" className="relative z-10 scroll-mt-20 bg-navy px-6 py-20">
+      <div className="mx-auto max-w-[1000px]">
+        <div className="reveal mx-auto max-w-[720px] text-center">
+          <Eyebrow>Pricing</Eyebrow>
+          <SectionTitle>Start free. Upgrade when you outgrow it.</SectionTitle>
+        </div>
+        <div className="mt-12 grid grid-cols-[repeat(auto-fit,minmax(min(320px,100%),1fr))] gap-5">
+          {plans.map((p, i) => {
+            const pro = p.name === 'Pro'
+            return (
+              <div
+                key={p.name}
+                className={cn(
+                  'reveal lift flex flex-col rounded-[22px] border p-9',
+                  i === 0 ? 'reveal-left' : 'reveal-right',
+                  pro ? 'border-sky/20 bg-[linear-gradient(160deg,#1B2CC1,#12207f)]' : 'border-sky/12 bg-surface',
+                )}
+                style={stagger(i)}
+              >
+                <h3 className="text-[26px] text-white">{p.name}</h3>
+                <p className={cn('mt-2 text-base', pro ? 'text-ink' : 'text-muted')}>{p.blurb}</p>
+                <p className="mt-5 text-white">
+                  <span className="text-[40px] leading-none font-bold">{p.price}</span>
+                  <span className={pro ? 'text-ink' : 'text-muted'}> / month</span>
+                </p>
+                <ul className="mt-6 flex-1 space-y-3 text-[15px]">
+                  {p.features.map((f) => (
+                    <li key={f} className={cn('flex gap-2.5', pro ? 'text-white' : 'text-ink')}>
+                      <Check size={20} className={cn('mt-px shrink-0', pro ? 'text-sky' : 'text-periwinkle')} />
+                      {f}
+                    </li>
+                  ))}
+                </ul>
+                <Link
+                  to={pro ? '/billing' : '/signup'}
+                  className={buttonVariants({ variant: pro ? 'white' : 'ghost', size: 'lg', className: 'mt-8 w-full font-bold' })}
+                >
+                  {p.cta}
+                </Link>
+              </div>
+            )
+          })}
+        </div>
+        <p className="reveal mt-6 text-center text-sm text-muted">Prices in Naira. Payments handled securely by Paystack.</p>
+      </div>
+    </section>
+  )
+}
+
 /* ---------- Responsible by design ---------- */
 
 const safeguards = [

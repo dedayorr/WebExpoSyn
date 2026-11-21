@@ -47,7 +47,7 @@ const fakeVerifier: TokenVerifier = async (token) => {
 
 /** App with auth on (fake verifier) and generous limits unless overridden. */
 const makeApp = (deps: AppDeps = {}) =>
-  createApp({ scan: fakeScan, verifier: fakeVerifier, targetScansPerWindow: 100, store: null, ...deps })
+  createApp({ scan: fakeScan, verifier: fakeVerifier, targetScansPerWindow: 100, store: null, billing: null, paystack: null, ...deps })
 
 /** In-memory store that records what the API saved. */
 function memoryStore(opts: { fail?: boolean } = {}) {

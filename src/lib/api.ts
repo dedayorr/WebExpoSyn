@@ -67,6 +67,30 @@ function assertReport(value: unknown): asserts value is ScanReport {
   }
 }
 
+export interface BillingSummary {
+  billingEnabled: boolean
+  plan: 'free' | 'pro'
+  status: 'inactive' | 'active' | 'non_renewing' | 'attention' | 'cancelled'
+  currentPeriodEnd: string | null
+  sitesUsed: number
+  /** null on Pro (unlimited). */
+  siteLimit: number | null
+  domains: string[]
+  priceKobo: number
+  canManage: boolean
+}
+
+/** Only ever send the browser to Paystack's own pages. */
+function assertPaystackUrl(url: unknown, hosts: string[]): string {
+  try {
+    const u = new URL(String(url))
+    if (u.protocol === 'https:' && hosts.some((h) => u.hostname === h || u.hostname.endsWith(`.${h}`))) return u.toString()
+  } catch {
+    /* fall through */
+  }
+  throw new ApiError(0, 'BAD_RESPONSE', 'The server returned an unexpected payment link.')
+}
+
 export const api = {
   async scan(url: string, dkimSelectors?: string[]): Promise<ScanReport> {
     const report = await request<unknown>('/api/scans', {
@@ -84,4 +108,25 @@ export const api = {
   checkVerification(domain: string): Promise<{ domain: string; verified: boolean }> {
     return request('/api/verification/check', { method: 'POST', body: JSON.stringify({ domain }) })
   },
+
+  billing(): Promise<BillingSummary> {
+    return request('/api/billing')
+  },
+
+  async checkout(): Promise<string> {
+    const { url } = await request<{ url: string }>('/api/billing/checkout', { method: 'POST', body: '{}' })
+    return assertPaystackUrl(url, ['checkout.paystack.com'])
+  },
+
+  verifyPayment(reference: string): Promise<BillingSummary> {
+    return request('/api/billing/verify', { method: 'POST', body: JSON.stringify({ reference }) })
+  },
+
+  async manageBilling(): Promise<string> {
+    const { url } = await request<{ url: string }>('/api/billing/manage', { method: 'POST', body: '{}' })
+    return assertPaystackUrl(url, ['paystack.com', 'paystack.co'])
+  },
 }
+
+export const formatNaira = (kobo: number) =>
+  new Intl.NumberFormat('en-NG', { style: 'currency', currency: 'NGN', maximumFractionDigits: 0 }).format(kobo / 100)

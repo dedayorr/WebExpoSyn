@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { AlertTriangle, ArrowRight, Check, Download, Globe, KeyRound, Loader2, LogOut, Menu, Plus, Radar, X } from 'lucide-react'
+import { AlertTriangle, ArrowRight, Check, Crown, Download, Globe, KeyRound, Loader2, LogOut, Menu, Plus, Radar, X } from 'lucide-react'
 import { Logo } from '@/components/layout/Logo'
 import { SeverityBadge } from '@/components/ui/badges'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { useAuth } from '@/auth/AuthProvider'
 import { useReports } from '@/hooks/useReports'
+import { useBilling } from '@/hooks/useBilling'
 import { MODULE_ORDER, MODULE_SHORT, formatDate } from '@/lib/modules'
 import { cn } from '@/lib/utils'
 import logoIcon from '@/assets/logo-icon.png'
@@ -19,6 +20,7 @@ export default function Dashboard() {
   const navigate = useNavigate()
   const { reports, verifiedDomains, loading, error } = useReports()
   const [drawerOpen, setDrawerOpen] = useState(false)
+  const { billing, refresh: refreshBilling } = useBilling()
 
   const hostnames = useMemo(() => Array.from(new Set(reports.map((r) => r.target.hostname))), [reports])
   const [selected, setSelected] = useState<string>('')
@@ -77,6 +79,40 @@ export default function Dashboard() {
     </nav>
   )
 
+  // Website count changes when scans are added or deleted.
+  useEffect(() => {
+    void refreshBilling()
+  }, [reports.length, refreshBilling])
+
+  const planCard = billing && (
+    <Link
+      to="/billing"
+      onClick={() => setDrawerOpen(false)}
+      className="mt-7 block rounded-[14px] border border-sky/10 bg-sky/5 p-4 transition-colors hover:border-periwinkle/40"
+    >
+      <div className="flex items-center justify-between text-sm">
+        <span className="flex items-center gap-2 font-semibold text-white">
+          {billing.plan === 'pro' && <Crown size={15} className="text-periwinkle" />}
+          {billing.plan === 'pro' ? 'Pro plan' : 'Free plan'}
+        </span>
+        <span className="font-mono text-xs text-muted">
+          {billing.siteLimit === null ? `${billing.sitesUsed} sites` : `${billing.sitesUsed}/${billing.siteLimit} sites`}
+        </span>
+      </div>
+      {billing.siteLimit !== null && (
+        <>
+          <div className="mt-2.5 h-1.5 overflow-hidden rounded-full bg-sky/10">
+            <div
+              className={cn('h-full rounded-full', billing.sitesUsed >= billing.siteLimit ? 'bg-fail' : 'bg-periwinkle')}
+              style={{ width: `${Math.min(100, (billing.sitesUsed / billing.siteLimit) * 100)}%` }}
+            />
+          </div>
+          <span className="mt-2.5 block text-[13px] font-semibold text-sky">Upgrade for unlimited sites →</span>
+        </>
+      )}
+    </Link>
+  )
+
   const accountCard = (
     <div className="mt-4 flex items-center gap-3 rounded-[14px] border border-sky/10 bg-sky/5 p-3">
       <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-royal font-display text-sm font-bold text-white">
@@ -122,6 +158,7 @@ export default function Dashboard() {
           </button>
         </div>
         {nav(() => setDrawerOpen(false))}
+        {planCard}
         {accountCard}
       </aside>
 
@@ -142,6 +179,7 @@ export default function Dashboard() {
             </Link>
           </div>
         )}
+        {planCard}
         {accountCard}
       </aside>
 

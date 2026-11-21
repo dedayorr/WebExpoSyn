@@ -7,6 +7,7 @@ import {
   ModuleStrip,
   Modules,
   Principles,
+  Pricing,
   Responsible,
   SampleFinding,
 } from '@/components/landing/Sections'
@@ -27,6 +28,7 @@ export default function Landing() {
         <HowItWorks />
         <SampleFinding />
         <Audience />
+        <Pricing />
         <Responsible />
         <CallToAction />
       </main>

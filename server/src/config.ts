@@ -23,6 +23,18 @@ const schema = z.object({
    * Lets the API save scans. Bypasses Row Level Security: never expose it.
    */
   SUPABASE_SECRET_KEY: z.string().optional(),
+
+  // --- Billing (Paystack) ---
+  /** Free plan: how many different websites (registrable domains) a user can scan. */
+  FREE_SITE_LIMIT: z.coerce.number().int().min(1).default(3),
+  /** Server-only Paystack secret key (sk_test_... or sk_live_...). */
+  PAYSTACK_SECRET_KEY: z.string().optional(),
+  /** Paystack plan code for the Pro monthly plan (PLN_...). */
+  PAYSTACK_PLAN_CODE: z.string().optional(),
+  /** Pro price in kobo, shown in the app and checked on payment. 500000 = NGN 5,000. */
+  PRO_PRICE_KOBO: z.coerce.number().int().positive().default(500_000),
+  /** Public URL of the frontend; Paystack returns users to APP_URL/billing. */
+  APP_URL: z.string().url().default('http://localhost:5173'),
 })
 
 const parsed = schema.safeParse(process.env)
@@ -63,6 +75,22 @@ if (env.SUPABASE_SECRET_KEY) {
   console.warn('Warning: SUPABASE_SECRET_KEY is not set, so scan history will not be saved.')
 }
 
+if (env.PAYSTACK_SECRET_KEY) {
+  if (env.PAYSTACK_SECRET_KEY.startsWith('pk_')) {
+    fatal('PAYSTACK_SECRET_KEY is set to a public key. Use the secret key (sk_test_... or sk_live_...) from Paystack Settings → API Keys & Webhooks.')
+  }
+  if (!/^sk_(test|live)_[A-Za-z0-9]+$/.test(env.PAYSTACK_SECRET_KEY)) fatal('PAYSTACK_SECRET_KEY does not look like a Paystack secret key.')
+  if (!env.PAYSTACK_PLAN_CODE || !/^PLN_[A-Za-z0-9]+$/.test(env.PAYSTACK_PLAN_CODE)) {
+    fatal('PAYSTACK_PLAN_CODE must be set to your Pro plan code (PLN_...) when PAYSTACK_SECRET_KEY is set.')
+  }
+  if (env.NODE_ENV === 'production' && env.PAYSTACK_SECRET_KEY.startsWith('sk_test_')) {
+    console.warn('Warning: using a Paystack TEST key in production. Payments will not be real.')
+  }
+  if (env.NODE_ENV === 'production' && !env.APP_URL.startsWith('https://')) fatal('APP_URL must use https:// in production.')
+} else if (!isTest) {
+  console.warn('Warning: PAYSTACK_SECRET_KEY is not set, so upgrading to Pro is unavailable (free limits still apply).')
+}
+
 const corsOrigins = env.CORS_ORIGINS.split(',').map((o) => o.trim()).filter(Boolean)
 if (corsOrigins.includes('*')) fatal('CORS_ORIGINS must list exact origins, not "*".')
 
@@ -70,6 +98,7 @@ export const config = {
   ...env,
   VERIFICATION_SECRET: verificationSecret,
   corsOrigins,
+  APP_URL: env.APP_URL.replace(/\/$/, ''),
 }
 
 /** Identifies the scanner to site owners in their logs. */

@@ -100,6 +100,14 @@ There was no record of who scanned what, rejected targets, rate-limit hits or fa
 - **Bounded storage.** Reports are capped at 1 MB each and 200 per user.
 - **Local fallback.** If saving fails, the API still returns the report, marked `persisted: false`, and the browser keeps it locally until sign-out.
 
+### Update: subscriptions and the free-plan limit
+
+- **The limit is enforced by the API, not the browser.** Before each scan the server reads the user's plan and the websites in their history. A new website beyond the free limit gets `402 PLAN_LIMIT`. Websites currently being scanned count too, so parallel requests can't slip past it. If the plan can't be read the scan is refused (fails closed).
+- **Users can't make themselves Pro.** `subscriptions` has a select-own RLS policy only; `billing_events` has no user grants at all. `server/tests/rls.test.ts` checks that a user can't update, insert or read billing data they shouldn't.
+- **Payments are verified with Paystack, server-side.** `/api/billing/verify` asks Paystack about the reference and accepts it only if it succeeded, is in NGN, is at least the Pro price, is for the Pro plan, and its metadata `user_id` matches the signed-in user (so one person's receipt can't upgrade another account). Old payments can't re-activate an expired plan.
+- **Webhooks are authenticated.** The `x-paystack-signature` HMAC-SHA512 is checked against the raw body with a constant-time compare. Each event is recorded once (idempotency), so replays are ignored; events for a different subscription are ignored. Period ends only move forward.
+- **Secret key stays on the server.** `PAYSTACK_SECRET_KEY` is server-only; the server refuses a public `pk_` key and warns if a test key runs in production. The browser only ever gets a checkout or manage link, and it only follows links to Paystack's own domains.
+
 ### Limitations
 
 These were not assessable from the repository: the deployed hosting and proxy configuration (including `TRUST_PROXY`), the Supabase project settings, egress firewall rules on the API host, and runtime behaviour against real websites. Rate-limit and throttle state is in memory; use a shared store (for example Redis) if you run more than one API instance.

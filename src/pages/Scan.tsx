@@ -192,7 +192,12 @@ export default function Scan() {
                   <p className="mt-2 text-sm text-muted">You can try again in about {Math.ceil(phase.error.retryAfter / 60)} minute(s).</p>
                 )}
                 <div className="mt-5 flex flex-wrap gap-2.5">
-                  {phase.error.status !== 422 && (
+                  {phase.error.code === 'PLAN_LIMIT' && (
+                    <Link to="/billing" className={buttonVariants({ variant: 'white', className: 'font-bold' })}>
+                      Upgrade to Pro <ArrowRight size={16} />
+                    </Link>
+                  )}
+                  {phase.error.status !== 422 && phase.error.code !== 'PLAN_LIMIT' && (
                     <Button onClick={() => setRunId((r) => r + 1)}>
                       <RotateCcw size={16} /> Try again
                     </Button>
@@ -265,6 +270,7 @@ export default function Scan() {
 }
 
 function errorTitle(error: ApiError) {
+  if (error.code === 'PLAN_LIMIT') return 'Free plan limit reached'
   if (error.status === 422) return 'This address can’t be scanned'
   if (error.code === 'TARGET_COOLDOWN') return 'Scanned recently'
   if (error.status === 429) return 'Scan limit reached'

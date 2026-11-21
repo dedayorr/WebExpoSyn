@@ -10,6 +10,7 @@ const links = [
   { href: '#checks', label: 'What we check' },
   { href: '#how', label: 'How it works' },
   { href: '#who', label: "Who it's for" },
+  { href: '#pricing', label: 'Pricing' },
 ]
 
 export function SiteHeader() {

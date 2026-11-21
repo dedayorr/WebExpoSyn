@@ -10,6 +10,7 @@ import Signup from '@/pages/Signup'
 import ForgotPassword from '@/pages/ForgotPassword'
 import ResetPassword from '@/pages/ResetPassword'
 import NotFound from '@/pages/NotFound'
+import Billing from '@/pages/Billing'
 
 /** Scroll to the top on route change (keeps #hash links working). */
 function ScrollToTop() {
@@ -33,6 +34,7 @@ export default function App() {
         <Route path="/scan" element={<ProtectedRoute><Scan /></ProtectedRoute>} />
         <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
         <Route path="/report" element={<ProtectedRoute><Report /></ProtectedRoute>} />
+        <Route path="/billing" element={<ProtectedRoute><Billing /></ProtectedRoute>} />
         <Route path="*" element={<NotFound />} />
       </Routes>
     </>

@@ -18,6 +18,17 @@ export type SecurityEvent =
   | 'verification.checked'
   | 'verification.persist_failed'
   | 'scan.persist_failed'
+  | 'scan.plan_limit'
+  | 'billing.usage_failed'
+  | 'billing.webhook'
+  | 'billing.webhook_bad_signature'
+  | 'billing.webhook_unmatched'
+  | 'billing.webhook_failed'
+  | 'billing.checkout_started'
+  | 'billing.verify_wrong_user'
+  | 'billing.verify_not_paid'
+  | 'billing.subscription_lookup_failed'
+  | 'billing.upgraded'
 
 export function logEvent(event: SecurityEvent, fields: Record<string, unknown> = {}) {
   if (process.env.NODE_ENV === 'test') return
