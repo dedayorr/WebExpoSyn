@@ -84,6 +84,13 @@ There was no record of who scanned what, rejected targets, rate-limit hits or fa
 - **Brute force:** a client-side cool-down after 5 failures. Supabase rate-limits server-side; enable CAPTCHA in Supabase for stronger protection.
 - **Tokens:** PKCE flow, so tokens are never placed in URL fragments.
 
+### Update: frontend connected to the API
+
+- API calls send the Supabase access token as a bearer token, with `credentials: 'omit'` (no cookies, so CSRF doesn't apply). An expired session leads to sign-out and a return to the login page.
+- API responses are rendered as text through React, so scanned sites' headers or records can't inject HTML.
+- Until Supabase storage is added, reports are kept in the browser's localStorage, per user, capped at 25, and **cleared on sign-out**. Anyone with access to the device or an XSS bug could read them, so the strict CSP matters. Moving reports to Supabase with Row Level Security is the next step.
+- **Deploying:** add the API origin to `connect-src` in `public/_headers` / `vercel.json`, otherwise the browser will block scans.
+
 ### Limitations
 
 These were not assessable from the repository: the deployed hosting and proxy configuration (including `TRUST_PROXY`), the Supabase project settings, egress firewall rules on the API host, and runtime behaviour against real websites. Rate-limit and throttle state is in memory; use a shared store (for example Redis) if you run more than one API instance.

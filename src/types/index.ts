@@ -52,3 +52,45 @@ export interface HistoryPoint {
   date: string
   failed: number
 }
+
+/* ------------------------------------------------------------------ */
+/* API report types (mirror server/src/types.ts)                       */
+/* ------------------------------------------------------------------ */
+
+export interface ModuleResult extends ModuleSummary {
+  /** Set when the whole module could not run (timeout, network error). */
+  error?: string
+}
+
+export interface ScanReport {
+  id: string
+  target: {
+    input: string
+    url: string
+    hostname: string
+    /** Registrable domain used for DNS and email checks. */
+    domain: string
+    addresses: string[]
+  }
+  ownershipVerified: boolean
+  startedAt: string
+  completedAt: string
+  durationMs: number
+  summary: {
+    total: number
+    pass: number
+    fail: number
+    warn: number
+    unverified: number
+    bySeverity: Record<'critical' | 'high' | 'medium' | 'low' | 'info', number>
+  }
+  modules: ModuleResult[]
+  findings: Finding[]
+}
+
+export interface VerificationInstructions {
+  domain: string
+  record: string
+  hosts: string[]
+  instructions: string
+}

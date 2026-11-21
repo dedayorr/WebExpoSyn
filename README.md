@@ -17,7 +17,7 @@ WebExpoSyn lets individuals and businesses check how securely their websites are
 
 This repository contains:
 
-- **Frontend** (repo root): React + TypeScript + Vite + Tailwind CSS. It currently renders sample data.
+- **Frontend** (repo root): React + TypeScript + Vite + Tailwind CSS, connected to the API. Scan results are kept on your device per account until Supabase storage is added.
 - **Backend API** ([`server/`](server/README.md)): Node.js + Express + TypeScript with SSRF-safe target validation and the security engine (SSL/TLS, headers, DNS, email and gated exposure checks).
 
 ## Screens
@@ -31,6 +31,8 @@ This repository contains:
 | `/login` | Sign in | Email + password, generic errors, cool-down after repeated failures |
 | `/signup` | Create account | Password strength meter, confirmation email, acceptable-use agreement |
 | `/forgot-password`, `/reset-password` | Password reset | Secure email link; signs out every session after the change |
+
+**Running both together:** start the API (`cd server && npm run dev`) and the frontend (`npm run dev`) in two terminals. `VITE_API_URL` in `.env.local` tells the frontend where the API is (default `http://localhost:4000`).
 
 `/scan`, `/dashboard` and `/report` require sign-in. The API also verifies the session token, so the UI guard is not the only protection.
 
@@ -145,7 +147,7 @@ These are requirements, not options, for building a responsible security product
 - [x] Express + TypeScript API with SSRF-safe URL validation
 - [x] Security engine: TLS, headers, DNS, email checks
 - [x] Controlled exposure checks behind ownership verification (DNS TXT)
-- [ ] Connect the frontend screens to the API
+- [x] Connect the Scan, Dashboard and Report screens to the API (real results, verification flow, report download)
 - [x] Login, sign-up and password reset (Supabase Auth) + API token verification
 - [x] Security audit (OWASP Top 10:2025) and fixes
 - [ ] Supabase persistence (domains, findings, reports) with Row Level Security

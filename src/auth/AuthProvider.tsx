@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import type { Session, User } from '@supabase/supabase-js'
 import { isAuthConfigured, supabase } from '@/lib/supabase'
+import { clearReports } from '@/lib/reportStore'
 
 interface AuthContextValue {
   configured: boolean
@@ -46,6 +47,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       user: session?.user ?? null,
       recovering,
       signOut: async () => {
+        // Remove this user's locally stored reports, then end the session.
+        clearReports(session?.user.id)
         // "local" clears this device; use "global" to sign out everywhere.
         await supabase?.auth.signOut({ scope: 'local' })
       },
