@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 360" width="640" height="360">
+<defs>
+<linearGradient id="bg3" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#13287a"/><stop offset="1" stop-color="#091540"/></linearGradient>
+<radialGradient id="gl3" cx="0.7" cy="0.2" r="0.7"><stop offset="0" stop-color="#1B2CC1" stop-opacity="0.55"/><stop offset="1" stop-color="#1B2CC1" stop-opacity="0"/></radialGradient>
+<pattern id="dots3" width="24" height="24" patternUnits="userSpaceOnUse"><circle cx="2" cy="2" r="1.2" fill="#ABD2FA" fill-opacity="0.12"/></pattern>
+</defs>
+<rect width="640" height="360" fill="url(#bg3)"/>
+<rect width="640" height="360" fill="url(#gl3)"/>
+<rect width="640" height="360" fill="url(#dots3)"/>
+
+<g transform="translate(250 180)">
+<circle r="105" fill="#0d1c54" stroke="#7692FF" stroke-width="2"/>
+<ellipse rx="105" ry="38" fill="none" stroke="#7692FF" stroke-opacity="0.5" stroke-width="1.5"/>
+<ellipse rx="105" ry="78" fill="none" stroke="#7692FF" stroke-opacity="0.3" stroke-width="1.5"/>
+<ellipse rx="42" ry="105" fill="none" stroke="#7692FF" stroke-opacity="0.5" stroke-width="1.5"/>
+<ellipse rx="80" ry="105" fill="none" stroke="#7692FF" stroke-opacity="0.3" stroke-width="1.5"/>
+<line x1="-105" y1="0" x2="105" y2="0" stroke="#7692FF" stroke-opacity="0.5"/>
+<line x1="0" y1="-105" x2="0" y2="105" stroke="#7692FF" stroke-opacity="0.5"/>
+<circle cx="-50" cy="-40" r="7" fill="#ABD2FA"/><circle cx="40" cy="-60" r="7" fill="#ABD2FA"/><circle cx="60" cy="30" r="7" fill="#ABD2FA"/><circle cx="-30" cy="50" r="7" fill="#ABD2FA"/>
+<path d="M-50 -40 L40 -60 L60 30 L-30 50 Z" fill="none" stroke="#ABD2FA" stroke-width="1.5" stroke-dasharray="4 4"/>
+</g>
+<path d="M310 110 C380 80 420 80 460 90" stroke="#7692FF" stroke-width="2" fill="none" stroke-dasharray="5 5"/>
+<path d="M310 210 C380 210 420 200 460 190" stroke="#7692FF" stroke-width="2" fill="none" stroke-dasharray="5 5"/>
+<path d="M290 270 C360 300 420 300 460 290" stroke="#7692FF" stroke-width="2" fill="none" stroke-dasharray="5 5"/>
+<g>
+<rect x="460" y="66" width="130" height="48" rx="10" fill="#1B2CC1"/><text x="476" y="96" font-family="monospace" font-size="15" font-weight="700" fill="#ffffff">NS</text><circle cx="568" cy="90" r="9" fill="#4ADE9A"/><path d="M564 90 l3 3 l5 -6" stroke="#05261a" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+<rect x="460" y="166" width="130" height="48" rx="10" fill="#1B2CC1"/><text x="476" y="196" font-family="monospace" font-size="15" font-weight="700" fill="#ffffff">CAA</text><circle cx="568" cy="190" r="9" fill="#4ADE9A"/><path d="M564 190 l3 3 l5 -6" stroke="#05261a" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+<rect x="460" y="266" width="130" height="48" rx="10" fill="#0d1c54" stroke="#F5C451" stroke-opacity="0.7"/><text x="476" y="296" font-family="monospace" font-size="15" font-weight="700" fill="#ffffff">DNSSEC</text><circle cx="568" cy="290" r="9" fill="#F5C451"/><path d="M568 285.5 v5 M568 293.5 v.5" stroke="#2a1f05" stroke-width="2.4" stroke-linecap="round"/>
+</g>
+<rect x="44" y="40" width="120" height="30" rx="15" fill="#091540" stroke="#7692FF" stroke-opacity="0.5"/><text x="60" y="60" font-family="monospace" font-size="12" font-weight="500" fill="#ABD2FA">A · MX · TXT</text>
+</svg>
