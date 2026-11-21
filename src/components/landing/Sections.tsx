@@ -4,6 +4,7 @@ import type { CSSProperties, ReactNode } from 'react'
 import { buttonVariants } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import responsibleBg from '@/assets/responsible-bg.jpg'
+import stripBg from '@/assets/modules-strip-bg.jpg'
 import tlsImg from '@/assets/modules/tls.svg'
 import headersImg from '@/assets/modules/headers.svg'
 import dnsImg from '@/assets/modules/dns.svg'
@@ -35,11 +36,17 @@ const strip = ['SSL/TLS', 'HTTP headers', 'DNS security', 'Email security', 'Exp
 export function ModuleStrip() {
   return (
     <section className="relative z-10 bg-navy px-6 pt-12 pb-12">
-      <div className="reveal mx-auto grid max-w-[1240px] grid-cols-[repeat(auto-fit,minmax(170px,1fr))] gap-px overflow-hidden rounded-2xl border border-sky/12 bg-sky/12">
+      <div
+        className="reveal relative mx-auto grid max-w-[1240px] grid-cols-[repeat(auto-fit,minmax(170px,1fr))] gap-px overflow-hidden rounded-2xl border border-sky/20 bg-cover bg-center shadow-[0_20px_50px_rgba(3,8,30,0.45)]"
+        style={{
+          // Light tint on the image itself: the 1px gaps between cells show it as glowing dividers.
+          backgroundImage: `linear-gradient(rgba(9,21,64,0.35), rgba(9,21,64,0.35)), url(${stripBg})`,
+        }}
+      >
         {strip.map((label, i) => (
-          <div key={label} className="flex items-center gap-3 bg-[#0b1a4f] p-5">
+          <div key={label} className="flex min-h-[76px] items-center gap-3 bg-[#0b1a4f]/72 p-5 backdrop-blur-[2px] transition-colors duration-300 hover:bg-[#0b1a4f]/50">
             <span className="font-display text-[15px] font-semibold text-periwinkle">0{i + 1}</span>
-            <span className="text-[15px] text-white">{label}</span>
+            <span className="text-[15px] font-medium text-white">{label}</span>
           </div>
         ))}
       </div>
