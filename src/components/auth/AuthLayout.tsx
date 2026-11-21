@@ -31,7 +31,7 @@ export function AuthLayout({ title, subtitle, children, footer }: AuthLayoutProp
       >
         <div aria-hidden="true" className="absolute inset-0 bg-[linear-gradient(160deg,rgba(9,21,64,0.94),rgba(9,21,64,0.78)_60%,rgba(27,44,193,0.55))]" />
         <div className="relative">
-          <Logo tone="light" />
+          <Logo tone="light" size="lg" />
         </div>
         <div className="relative">
           <h2 className="animate-slide-up stagger-1 text-[40px] leading-[1.08] font-bold text-white">

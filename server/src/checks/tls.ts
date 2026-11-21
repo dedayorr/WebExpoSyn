@@ -1,5 +1,6 @@
 import tls, { type PeerCertificate, type SecureVersion } from 'node:tls'
 import { errorMessage, evidence, makeFinding } from '../lib/finding.js'
+import { withRetry } from '../lib/retry.js'
 import { safeFetch } from '../lib/safeFetch.js'
 import type { ResolvedTarget } from '../lib/target.js'
 import type { Finding } from '../types.js'
@@ -51,13 +52,13 @@ function handshake(
 /** Tests whether the server accepts a specific (legacy) protocol version. */
 async function acceptsVersion(hostname: string, address: string, version: SecureVersion): Promise<boolean | 'unknown'> {
   try {
-    await handshake(hostname, address, {
+    await withRetry(() => handshake(hostname, address, {
       minVersion: version,
       maxVersion: version,
       // OpenSSL 3 disables TLS 1.0/1.1 at the default security level; lower it
       // for this probe only so we can tell whether the SERVER still allows them.
       ciphers: 'DEFAULT@SECLEVEL=0',
-    })
+    }))
     return true
   } catch (err) {
     const code = (err as NodeJS.ErrnoException).code ?? ''
@@ -76,7 +77,7 @@ export async function runTlsChecks(target: ResolvedTarget): Promise<Finding[]> {
 
   let hs: Handshake
   try {
-    hs = await handshake(hostname, address)
+    hs = await withRetry(() => handshake(hostname, address))
   } catch (err) {
     out.push(
       f({

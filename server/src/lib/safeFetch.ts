@@ -2,6 +2,7 @@ import http from 'node:http'
 import https from 'node:https'
 import type { LookupFunction } from 'node:net'
 import { USER_AGENT } from '../config.js'
+import { withRetry } from './retry.js'
 import { defaultLookupAll, parseTarget, resolvePublicAddresses, type LookupAll } from './target.js'
 
 export interface SafeFetchOptions {
@@ -65,7 +66,7 @@ export async function safeFetch(input: string, opts: SafeFetchOptions = {}): Pro
   for (let hop = 0; hop <= maxRedirects; hop++) {
     const target = parseTarget(current)
     const [pinned] = await resolvePublicAddresses(target.hostname, lookupAll)
-    const res = await requestOnce(target.url, pinned, { method, timeoutMs, maxBytes, insecureTls })
+    const res = await withRetry(() => requestOnce(target.url, pinned, { method, timeoutMs, maxBytes, insecureTls }))
 
     const location = res.headers.location
     if (res.status >= 300 && res.status < 400 && location) {

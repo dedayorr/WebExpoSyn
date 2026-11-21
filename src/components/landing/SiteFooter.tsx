@@ -6,7 +6,7 @@ export function SiteFooter() {
     <footer className="relative z-10 border-t border-sky/10 bg-navy px-6 py-12">
       <div className="mx-auto flex max-w-[1240px] flex-wrap justify-between gap-8">
         <div className="max-w-[320px]">
-          <Logo tone="light" />
+          <Logo tone="light" size="lg" />
           <p className="mt-3.5 text-sm leading-relaxed text-subtle">
             Lightweight website security posture and exposure assessment.
           </p>

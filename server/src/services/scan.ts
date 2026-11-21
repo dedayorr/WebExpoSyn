@@ -51,7 +51,7 @@ export async function runScan(input: string, opts: ScanOptions = {}): Promise<Sc
   // Ownership is per user, so the caller supplies the check. Without one
   // (e.g. the CLI) the domain is treated as unverified and exposure checks stay off.
   const ownershipVerified = opts.verifyOwnership ? await opts.verifyOwnership(target.domain).catch(() => false) : false
-  const moduleTimeoutMs = opts.moduleTimeoutMs ?? 30_000
+  const moduleTimeoutMs = opts.moduleTimeoutMs ?? 40_000
 
   const runners: Record<ModuleId, (t: ResolvedTarget, ctx: { ownershipVerified: boolean }) => Promise<Finding[]>> = {
     tls: (t) => runTlsChecks(t),

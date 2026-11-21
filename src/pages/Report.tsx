@@ -1,14 +1,16 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
-import { ArrowLeft, Check, ChevronDown, Download, FileSearch, Loader2, Printer, RotateCcw, Trash2 } from 'lucide-react'
+import { ArrowLeft, Check, ChevronDown, Download, FileSearch, Loader2, RotateCcw, Trash2 } from 'lucide-react'
 import { AppHeader } from '@/components/layout/AppHeader'
 import { VerifyOwnership } from '@/components/report/VerifyOwnership'
+import { ScanComparison } from '@/components/report/ScanComparison'
 import { SeverityBadge, StatusBadge } from '@/components/ui/badges'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { useReport } from '@/hooks/useReports'
 import { notifyReportsChanged } from '@/lib/reportStore'
 import { MODULE_LABELS, MODULE_ORDER, MODULE_SHORT, formatDate } from '@/lib/modules'
 import { cn } from '@/lib/utils'
+import logoIconUrl from '@/assets/logo-icon.png'
 import type { CheckStatus, ModuleId, ScanReport } from '@/types'
 
 type StatusFilter = 'issues' | CheckStatus
@@ -21,7 +23,7 @@ export default function Report() {
   const [params] = useSearchParams()
   const navigate = useNavigate()
   const id = params.get('id')
-  const { report, loading, deleteReport, verifiedDomains } = useReport(id)
+  const { report, loading, deleteReport, verifiedDomains, reports } = useReport(id)
 
   if (loading && !report) {
     return (
@@ -58,6 +60,7 @@ export default function Report() {
       report={report}
       initialModule={params.get('module')}
       domainVerified={verifiedDomains.has(report.target.domain)}
+      previous={reports.find((r) => r.target.hostname === report.target.hostname && r.completedAt < report.completedAt)}
       onDelete={async () => {
         await deleteReport(report.id)
         navigate('/dashboard', { replace: true })
@@ -70,11 +73,13 @@ function ReportView({
   report,
   initialModule,
   domainVerified,
+  previous,
   onDelete,
 }: {
   report: ScanReport
   initialModule: string | null
   domainVerified: boolean
+  previous?: ScanReport
   onDelete: () => Promise<void>
 }) {
   const [confirmDelete, setConfirmDelete] = useState(false)
@@ -126,15 +131,34 @@ function ReportView({
     toastTimer.current = window.setTimeout(() => setToast(null), 2800)
   }
 
-  function downloadJson() {
-    const blob = new Blob([JSON.stringify(report, null, 2)], { type: 'application/json' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `webexposyn-${report.target.hostname}-${report.completedAt.slice(0, 10)}.json`
-    a.click()
-    URL.revokeObjectURL(url)
-    showToast('Report downloaded')
+  const [pdfBusy, setPdfBusy] = useState(false)
+
+  /** Builds the PDF in the browser. The PDF library loads only when needed. */
+  async function downloadPdf() {
+    setPdfBusy(true)
+    try {
+      const [{ buildReportPdf, reportPdfFilename }, logoDataUrl] = await Promise.all([
+        import('@/lib/pdfReport'),
+        fetch(logoIconUrl)
+          .then((r) => r.blob())
+          .then(
+            (blob) =>
+              new Promise<string>((resolve, reject) => {
+                const reader = new FileReader()
+                reader.onload = () => resolve(String(reader.result))
+                reader.onerror = reject
+                reader.readAsDataURL(blob)
+              }),
+          )
+          .catch(() => undefined),
+      ])
+      buildReportPdf(report, { logoDataUrl }).save(reportPdfFilename(report))
+      showToast('PDF report downloaded')
+    } catch {
+      showToast('Could not create the PDF. Please try again.')
+    } finally {
+      setPdfBusy(false)
+    }
   }
 
   const severityTiles = [
@@ -159,11 +183,8 @@ function ReportView({
           >
             <RotateCcw size={15} /> Rescan
           </Link>
-          <Button size="sm" variant="light" className="font-medium" onClick={() => window.print()}>
-            <Printer size={15} /> Print / PDF
-          </Button>
-          <Button size="sm" onClick={downloadJson}>
-            <Download size={16} /> Download
+          <Button size="sm" onClick={downloadPdf} disabled={pdfBusy}>
+            {pdfBusy ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />} Download PDF
           </Button>
           {confirmDelete ? (
             <Button
@@ -217,6 +238,8 @@ function ReportView({
             {failedModules.map((m) => m.name).join(', ')} could not complete this time, so those results are marked "couldn't verify". Rescan to try again.
           </p>
         )}
+
+        {previous && <ScanComparison previous={previous} current={report} />}
 
         {deleteError && <p role="alert" className="mt-4 rounded-xl border border-fail/40 bg-fail/10 px-4 py-3 text-sm text-ink">{deleteError}</p>}
 
