@@ -192,6 +192,65 @@
 .accordion[data-open='true'] { grid-template-rows: 1fr; }
 .accordion > div { overflow: hidden; }
 
+/* ---------- Shield loading screen ---------- */
+.intro-active [class*='animate-'] { animation-play-state: paused; }
+
+.shield-loader .sl-threat,
+.shield-loader .sl-impact,
+.shield-loader .sl-shield,
+.shield-loader .sl-guardian { transform-box: fill-box; }
+
+.sl-threat { opacity: 0; animation: sl-attack 1.5s cubic-bezier(0.45, 0, 0.6, 1) infinite; }
+.sl-bounce-down { animation-name: sl-attack-down; }
+@keyframes sl-attack {
+  0% { opacity: 0; transform: translate(90px, 0); }
+  12% { opacity: 1; }
+  45% { opacity: 1; transform: translate(0, 0) rotate(0deg); }
+  70% { opacity: 0.7; transform: translate(26px, -30px) rotate(-40deg); }
+  85%, 100% { opacity: 0; transform: translate(36px, -42px) rotate(-55deg); }
+}
+@keyframes sl-attack-down {
+  0% { opacity: 0; transform: translate(90px, 0); }
+  12% { opacity: 1; }
+  45% { opacity: 1; transform: translate(0, 0) rotate(0deg); }
+  70% { opacity: 0.7; transform: translate(26px, 30px) rotate(40deg); }
+  85%, 100% { opacity: 0; transform: translate(36px, 42px) rotate(55deg); }
+}
+
+/* Ripple where each attack lands */
+.sl-impact { opacity: 0; transform-origin: center; animation: sl-impact 1.5s ease-out infinite; }
+@keyframes sl-impact {
+  0%, 42% { opacity: 0; transform: scale(0.3); }
+  48% { opacity: 1; transform: scale(0.8); }
+  75%, 100% { opacity: 0; transform: scale(2.2); }
+}
+
+/* Shield braces against each hit; the guardian leans in */
+.sl-shield { transform-origin: 50% 50%; animation: sl-brace 0.5s ease-in-out infinite; }
+@keyframes sl-brace {
+  0%, 30%, 100% { transform: translateX(0); }
+  15% { transform: translateX(-2.5px); }
+}
+.sl-guardian { transform-origin: 50% 100%; animation: sl-lean 0.5s ease-in-out infinite; }
+@keyframes sl-lean {
+  0%, 30%, 100% { transform: translateX(0); }
+  15% { transform: translateX(-1.5px); }
+}
+
+/* A light runs round the shield's edge */
+.sl-shield-edge { stroke-dasharray: 18 82; opacity: 0.8; animation: sl-edge 1.8s linear infinite; }
+@keyframes sl-edge { to { stroke-dashoffset: -100; } }
+
+.sl-glow { transform-origin: center; transform-box: fill-box; animation: sl-glow 1.5s ease-in-out infinite; }
+@keyframes sl-glow {
+  0%, 100% { opacity: 0.6; transform: scale(0.95); }
+  50% { opacity: 1; transform: scale(1.05); }
+}
+
+/* Fills over the loader's 3 seconds */
+.sl-progress { width: 100%; animation: sl-progress 2.9s cubic-bezier(0.3, 0.6, 0.4, 1) both; }
+@keyframes sl-progress { from { width: 0%; } to { width: 100%; } }
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation: none !important;

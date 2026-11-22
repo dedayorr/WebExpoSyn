@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
+import { ShieldLoader } from '@/components/ShieldLoader'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { AuthLayout } from '@/components/auth/AuthLayout'
 import { FormAlert, PasswordField, SubmitButton, TextField } from '@/components/auth/fields'
@@ -22,10 +23,24 @@ export default function Login() {
   const [error, setError] = useState<string | null>(null)
   const [lockedUntil, setLockedUntil] = useState(0)
   const failures = useRef(0)
+  /** After a successful sign-in: show the shield screen, then open the dashboard. */
+  const [entering, setEntering] = useState<'no' | 'show' | 'leaving'>('no')
+  const signingIn = useRef(false)
+
+  // Already signed in (e.g. opened /login in a new tab): go straight through.
+  useEffect(() => {
+    if (session && !signingIn.current) navigate(next, { replace: true })
+  }, [session, next, navigate])
 
   useEffect(() => {
-    if (session) navigate(next, { replace: true })
-  }, [session, next, navigate])
+    if (entering !== 'show') return
+    const leave = window.setTimeout(() => setEntering('leaving'), 2600)
+    const go = window.setTimeout(() => navigate(next, { replace: true }), 3000)
+    return () => {
+      window.clearTimeout(leave)
+      window.clearTimeout(go)
+    }
+  }, [entering, next, navigate])
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault()
@@ -36,9 +51,11 @@ export default function Login() {
       return
     }
     setLoading(true)
+    signingIn.current = true
     const { error: err } = await supabase.auth.signInWithPassword({ email: email.trim(), password })
     setLoading(false)
     if (err) {
+      signingIn.current = false
       failures.current += 1
       if (failures.current >= MAX_ATTEMPTS) {
         failures.current = 0
@@ -56,8 +73,10 @@ export default function Login() {
       return
     }
     failures.current = 0
-    navigate(next, { replace: true })
+    setEntering('show')
   }
+
+  if (entering !== 'no') return <ShieldLoader label="Securing your dashboard…" leaving={entering === 'leaving'} />
 
   return (
     <AuthLayout

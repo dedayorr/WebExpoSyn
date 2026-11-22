@@ -1,6 +1,7 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { Route, Routes, useLocation } from 'react-router-dom'
 import { ProtectedRoute } from '@/auth/ProtectedRoute'
+import { ShieldLoader } from '@/components/ShieldLoader'
 import Landing from '@/pages/Landing'
 import Scan from '@/pages/Scan'
 import Dashboard from '@/pages/Dashboard'
@@ -21,9 +22,36 @@ function ScrollToTop() {
   return null
 }
 
+/** How long the opening shield animation shows on a fresh visit. */
+const INTRO_MS = 3000
+
+/** Opening loading screen: shown once per page load, then fades out. */
+function IntroLoader() {
+  const [phase, setPhase] = useState<'show' | 'leaving' | 'done'>('show')
+  // Hold the page's own entrance animations until the shield fades.
+  useEffect(() => {
+    const root = document.documentElement
+    if (phase === 'show') root.classList.add('intro-active')
+    else root.classList.remove('intro-active')
+    return () => root.classList.remove('intro-active')
+  }, [phase])
+
+  useEffect(() => {
+    const leave = window.setTimeout(() => setPhase('leaving'), INTRO_MS - 400)
+    const done = window.setTimeout(() => setPhase('done'), INTRO_MS + 100)
+    return () => {
+      window.clearTimeout(leave)
+      window.clearTimeout(done)
+    }
+  }, [])
+  if (phase === 'done') return null
+  return <ShieldLoader label="Raising your shield…" leaving={phase === 'leaving'} />
+}
+
 export default function App() {
   return (
     <>
+      <IntroLoader />
       <ScrollToTop />
       <Routes>
         <Route path="/" element={<Landing />} />
