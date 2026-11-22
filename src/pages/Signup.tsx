@@ -10,6 +10,8 @@ import { supabase } from '@/lib/supabase'
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/
 
+const EXISTS = 'EXISTS'
+
 export default function Signup() {
   const [params] = useSearchParams()
   const navigate = useNavigate()
@@ -56,9 +58,20 @@ export default function Signup() {
     })
     setLoading(false)
     if (err) {
-      if (err.status === 429) setError('Too many sign-up attempts. Please wait a few minutes and try again.')
+      // Our database rule refuses emails that reach an inbox already registered
+      // (e.g. Gmail dot or +tag variations); Supabase reports it as a database error.
+      if (/already (exists|registered)|database error saving new user/i.test(err.message)) setError(EXISTS)
+      else if (err.status === 429) setError('Too many sign-up attempts. Please wait a few minutes and try again.')
       else if (/password/i.test(err.message)) setError('That password is not allowed. It may have appeared in a data breach. Please choose another.')
       else setError("We couldn't create your account. Please check your details and try again.")
+      return
+    }
+    // Supabase answers a sign-up for an existing email with a placeholder user
+    // that has no identities, instead of an error.
+    if (data.user && data.user.identities?.length === 0) {
+      setError(EXISTS)
+      setPassword('')
+      setConfirm('')
       return
     }
     setPassword('')
@@ -66,8 +79,6 @@ export default function Signup() {
     if (data.session) {
       navigate(next, { replace: true })
     } else {
-      // Same screen whether or not the email already has an account,
-      // so sign-up can't be used to discover registered emails.
       setSentTo(email.trim())
     }
   }
@@ -106,7 +117,21 @@ export default function Signup() {
       }
     >
       <form onSubmit={onSubmit} noValidate className="flex flex-col gap-5">
-        {error && <FormAlert tone="error">{error}</FormAlert>}
+        {error === EXISTS ? (
+          <FormAlert tone="error">
+            An account with this email already exists.{' '}
+            <Link to={`/login${next !== '/dashboard' ? `?next=${encodeURIComponent(next)}` : ''}`} className="font-semibold underline">
+              Sign in
+            </Link>{' '}
+            or{' '}
+            <Link to="/forgot-password" className="font-semibold underline">
+              reset your password
+            </Link>
+            .
+          </FormAlert>
+        ) : (
+          error && <FormAlert tone="error">{error}</FormAlert>
+        )}
         <TextField
           label="Full name"
           name="name"

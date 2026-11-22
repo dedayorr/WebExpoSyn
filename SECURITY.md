@@ -108,6 +108,11 @@ There was no record of who scanned what, rejected targets, rate-limit hits or fa
 - **Webhooks are authenticated.** The `x-paystack-signature` HMAC-SHA512 is checked against the raw body with a constant-time compare. Each event is recorded once (idempotency), so replays are ignored; events for a different subscription are ignored. Period ends only move forward.
 - **Secret key stays on the server.** `PAYSTACK_SECRET_KEY` is server-only; the server refuses a public `pk_` key and warns if a test key runs in production. The browser only ever gets a checkout or manage link, and it only follows links to Paystack's own domains.
 
+### Update: one account per email
+
+- **Database rule.** A trigger on `auth.users` (`supabase/migrations/20261122190000_unique_account_emails.sql`) refuses a sign-up or email change whose inbox is already registered, ignoring letter case, `+tag` suffixes, and Gmail dots and `googlemail.com`. An advisory lock stops two simultaneous sign-ups for the same inbox. The helper functions are not callable from the browser. Tested in `server/tests/rls.test.ts`.
+- **Deliberate trade-off.** The sign-up form now says "An account with this email already exists" instead of Supabase's neutral "check your email" screen. That makes it possible to test whether an email is registered (account enumeration). It was chosen for clarity; Supabase's sign-up rate limits apply, and enabling CAPTCHA (see below) makes bulk checking impractical.
+
 ### Limitations
 
 These were not assessable from the repository: the deployed hosting and proxy configuration (including `TRUST_PROXY`), the Supabase project settings, egress firewall rules on the API host, and runtime behaviour against real websites. Rate-limit and throttle state is in memory; use a shared store (for example Redis) if you run more than one API instance.

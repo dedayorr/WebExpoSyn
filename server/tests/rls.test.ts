@@ -41,7 +41,7 @@ beforeAll(async () => {
   await db.exec(`
     create role anon nologin; create role authenticated nologin;
     create schema auth;
-    create table auth.users (id uuid primary key);
+    create table auth.users (id uuid primary key, email text);
     create function auth.uid() returns uuid language sql stable as $$
       select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid $$;
     grant usage on schema auth to anon, authenticated;
@@ -156,6 +156,45 @@ describe('Row Level Security', () => {
 
     it('rejects unknown plan values', async () => {
       await expect(db.exec(`update public.subscriptions set plan = 'enterprise' where user_id = '${A}'`)).rejects.toThrow()
+    })
+  })
+
+  describe('one account per email inbox', () => {
+    const add = (id: string, email: string) => db.exec(`insert into auth.users (id, email) values ('${id}', '${email}')`)
+
+    it('allows different inboxes', async () => {
+      await add('44444444-4444-4444-4444-444444444444', 'dayo@example.com')
+      await add('55555555-5555-5555-5555-555555555555', 'tolu@example.com')
+    })
+
+    it('refuses the same email in different letter case', async () => {
+      await expect(add('66666666-6666-6666-6666-666666666666', 'Dayo@Example.COM')).rejects.toThrow(/already exists/)
+    })
+
+    it('refuses +tag variations', async () => {
+      await expect(add('66666666-6666-6666-6666-666666666666', 'dayo+second@example.com')).rejects.toThrow(/already exists/)
+    })
+
+    it('refuses Gmail dot and googlemail variations', async () => {
+      await add('77777777-7777-7777-7777-777777777777', 'ade.yeye@gmail.com')
+      await expect(add('88888888-8888-8888-8888-888888888888', 'adeyeye@gmail.com')).rejects.toThrow(/already exists/)
+      await expect(add('88888888-8888-8888-8888-888888888888', 'a.d.e.y.e.y.e+x@googlemail.com')).rejects.toThrow(/already exists/)
+    })
+
+    it('does not treat dots as equal outside Gmail', async () => {
+      await add('99999999-9999-9999-9999-999999999999', 'd.ayo@example.com')
+    })
+
+    it('refuses changing an email to one already in use, but allows keeping your own', async () => {
+      await expect(
+        db.exec(`update auth.users set email = 'DAYO@example.com' where id = '55555555-5555-5555-5555-555555555555'`),
+      ).rejects.toThrow(/already exists/)
+      await db.exec(`update auth.users set email = 'Dayo@example.com' where id = '44444444-4444-4444-4444-444444444444'`)
+    })
+
+    it('helper functions are not callable by users', async () => {
+      const r = await as('authenticated', A, `select public.normalize_email('x@y.com')`)
+      expect(r.ok).toBe(false)
     })
   })
 })
