@@ -15,6 +15,7 @@ export type SecurityEvent =
   | 'scan.target_cooldown'
   | 'scan.busy'
   | 'auth.failed'
+  | 'auth.unavailable'
   | 'verification.checked'
   | 'verification.persist_failed'
   | 'scan.persist_failed'

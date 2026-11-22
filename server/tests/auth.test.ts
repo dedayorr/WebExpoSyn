@@ -1,6 +1,8 @@
-import { SignJWT } from 'jose'
+import { SignJWT, errors, generateKeyPair } from 'jose'
+import express from 'express'
+import request from 'supertest'
 import { describe, expect, it } from 'vitest'
-import { createSupabaseVerifier } from '../src/middleware/auth.js'
+import { AuthUnavailableError, createSupabaseVerifier, requireAuth } from '../src/middleware/auth.js'
 
 const SUPABASE_URL = 'https://abcd.supabase.co'
 const SECRET = 'legacy-hs256-secret-for-tests-only-0123456789'
@@ -53,5 +55,66 @@ describe('Supabase token verification', () => {
       exp: Math.floor(Date.now() / 1000) + 3600,
     })}.`
     await expect(verify(unsigned)).rejects.toThrow()
+  })
+})
+
+describe('when signing keys cannot be fetched', async () => {
+  const { publicKey, privateKey } = await generateKeyPair('ES256')
+  const esToken = () =>
+    new SignJWT({ email: 'dayo@example.com' })
+      .setProtectedHeader({ alg: 'ES256', kid: 'k1' })
+      .setIssuedAt()
+      .setIssuer(`${SUPABASE_URL}/auth/v1`)
+      .setAudience('authenticated')
+      .setExpirationTime('1h')
+      .setSubject('user-123')
+      .sign(privateKey)
+  const unreachable = async () => {
+    throw new errors.JWKSTimeout()
+  }
+  const verify = createSupabaseVerifier(SUPABASE_URL, undefined, { jwks: unreachable })
+
+  it('reports "unavailable" instead of "bad token"', async () => {
+    await expect(verify(await esToken())).rejects.toBeInstanceOf(AuthUnavailableError)
+  })
+
+  it('retries once, so a single network blip still succeeds', async () => {
+    let calls = 0
+    const flaky = async () => {
+      calls++
+      if (calls === 1) throw new TypeError('fetch failed')
+      return publicKey
+    }
+    const v = createSupabaseVerifier(SUPABASE_URL, undefined, { jwks: flaky })
+    expect(await v(await esToken())).toEqual({ id: 'user-123', email: 'dayo@example.com' })
+    expect(calls).toBe(2)
+  })
+
+  it('does not retry a forged token', async () => {
+    const other = await generateKeyPair('ES256')
+    let calls = 0
+    const v = createSupabaseVerifier(SUPABASE_URL, undefined, {
+      jwks: async () => {
+        calls++
+        return other.publicKey
+      },
+    })
+    await expect(v(await esToken())).rejects.not.toBeInstanceOf(AuthUnavailableError)
+    expect(calls).toBe(1)
+  })
+
+  it('answers 503 (not 401) so the app does not sign the user out', async () => {
+    const app = express()
+    app.get('/x', requireAuth(verify), (_req, res) => res.json({ ok: true }))
+    const res = await request(app).get('/x').set('Authorization', `Bearer ${await esToken()}`)
+    expect(res.status).toBe(503)
+    expect(res.body.error.code).toBe('AUTH_UNAVAILABLE')
+  })
+
+  it('still answers 401 for an expired token', async () => {
+    const app = express()
+    app.get('/x', requireAuth(createSupabaseVerifier(SUPABASE_URL, SECRET)), (_req, res) => res.json({ ok: true }))
+    const res = await request(app).get('/x').set('Authorization', `Bearer ${await token({ exp: Math.floor(Date.now() / 1000) - 60 })}`)
+    expect(res.status).toBe(401)
   })
 })

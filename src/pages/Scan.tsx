@@ -271,6 +271,7 @@ export default function Scan() {
 
 function errorTitle(error: ApiError) {
   if (error.code === 'PLAN_LIMIT') return 'Free plan limit reached'
+  if (error.code === 'AUTH_UNAVAILABLE') return 'Couldn’t confirm your sign-in'
   if (error.status === 422) return 'This address can’t be scanned'
   if (error.code === 'TARGET_COOLDOWN') return 'Scanned recently'
   if (error.status === 429) return 'Scan limit reached'

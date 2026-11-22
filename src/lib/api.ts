@@ -23,9 +23,18 @@ export class ApiError extends Error {
   }
 }
 
-async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
-  // Always fetch the current session: supabase-js refreshes expired tokens here.
-  const token = supabase ? (await supabase.auth.getSession()).data.session?.access_token : undefined
+async function currentToken(forceRefresh = false): Promise<string | undefined> {
+  if (!supabase) return undefined
+  if (forceRefresh) {
+    const { data } = await supabase.auth.refreshSession()
+    return data.session?.access_token
+  }
+  // getSession refreshes an expired token automatically.
+  return (await supabase.auth.getSession()).data.session?.access_token
+}
+
+async function request<T>(path: string, init: RequestInit = {}, retried = false): Promise<T> {
+  const token = await currentToken(retried)
 
   let res: Response
   try {
@@ -45,6 +54,12 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
       throw new ApiError(0, 'CLIENT_TIMEOUT', 'The scan is taking too long. Please try again later.')
     }
     throw new ApiError(0, 'NETWORK', "Can't reach the WebExpoSyn API. Check your connection, or that the server is running.")
+  }
+
+  // A rejected token may just be stale: get a fresh one and try once more
+  // before treating the session as over.
+  if (res.status === 401 && !retried && token) {
+    return request<T>(path, init, true)
   }
 
   const body = await res.json().catch(() => null)

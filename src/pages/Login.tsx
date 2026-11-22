@@ -32,15 +32,18 @@ export default function Login() {
     if (session && !signingIn.current) navigate(next, { replace: true })
   }, [session, next, navigate])
 
+  // Runs once when sign-in succeeds. Depends only on "started", so switching
+  // to the fade-out doesn't cancel the timer that opens the dashboard.
+  const started = entering !== 'no'
   useEffect(() => {
-    if (entering !== 'show') return
+    if (!started) return
     const leave = window.setTimeout(() => setEntering('leaving'), 2600)
     const go = window.setTimeout(() => navigate(next, { replace: true }), 3000)
     return () => {
       window.clearTimeout(leave)
       window.clearTimeout(go)
     }
-  }, [entering, next, navigate])
+  }, [started, next, navigate])
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault()
