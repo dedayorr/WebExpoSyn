@@ -80,40 +80,93 @@ const day = (iso?: string) => {
   return Number.isNaN(d.getTime()) ? null : d.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' })
 }
 
-/** A plain-English explanation and error code for the user. */
-export function explainMissingDomain(hostname: string, domain: string, status: DomainStatus): { code: string; message: string } {
+export interface DomainExplanation {
+  code: string
+  message: string
+  /** What this means and what to do, as short sentences. */
+  advice: string[]
+}
+
+const RECHECK = 'Once it is fixed, run a new scan to check the website’s security.'
+
+/** A plain-English explanation, what to do next, and an error code for the user. */
+export function explainMissingDomain(hostname: string, domain: string, status: DomainStatus): DomainExplanation {
   switch (status.state) {
     case 'expired': {
       const on = day(status.expiredOn)
       const when = on ? ` on ${on}` : ''
-      const next =
-        status.detail === 'pending_delete'
-          ? 'It is about to be released, so anyone may soon be able to register it.'
-          : 'The owner can usually still renew it with their domain registrar.'
-      return { code: 'DOMAIN_EXPIRED', message: `${domain} expired${when}, so it no longer points to a website. ${next}` }
+      if (status.detail === 'pending_delete') {
+        return {
+          code: 'DOMAIN_EXPIRED',
+          message: `This domain has expired. ${domain} expired${when} and is about to be deleted by the registry, so it can no longer be renewed.`,
+          advice: [
+            'The website and every email address on this domain have stopped working.',
+            'Within days, anyone will be able to register it, including someone who could use it to impersonate the business or receive emails meant for it.',
+            'To get it back, register it the moment it becomes available. A backorder service from your registrar can try to catch it for you.',
+            'Update anywhere the old address appears: social profiles, business cards, email signatures and online listings.',
+          ],
+        }
+      }
+      return {
+        code: 'DOMAIN_EXPIRED',
+        message: `This domain has expired. ${domain} expired${when}, so it no longer points to a website.`,
+        advice: [
+          'The website and every email address on this domain have stopped working.',
+          status.detail === 'redemption'
+            ? 'It is in its recovery (redemption) period: the owner can still get it back from the registrar where it was bought, usually for an extra fee. Act quickly; after this period it is deleted.'
+            : 'The owner can usually still renew it at the registrar where it was bought (for example Whogohost, Namecheap or GoDaddy). Log in there and renew it as soon as possible.',
+          'If it is not renewed, it will be released and anyone could register it and pose as the business.',
+          'After renewing, it can take up to 48 hours for the website and email to work again.',
+          'Turn on auto-renew and keep the registrar contact email up to date so it does not lapse again.',
+          RECHECK,
+        ],
+      }
     }
     case 'unregistered':
       return {
         code: 'DOMAIN_NOT_REGISTERED',
-        message: `${domain} is not registered to anyone. Check the spelling; if it is yours, it may have expired and been released.`,
+        message: `${domain} is not registered to anyone.`,
+        advice: [
+          'Check the spelling of the address.',
+          'If this domain used to belong to you or your business, it has expired and been released. You can register it again if it is still free.',
+          'While it is unregistered, anyone can buy it, so register it quickly if you still need it.',
+        ],
       }
     case 'on_hold':
       return {
         code: 'DOMAIN_ON_HOLD',
-        message: `${domain} is registered but suspended by its registrar (often after a missed renewal or a billing issue), so it has no website right now.`,
+        message: `${domain} is registered but suspended by its registrar, so it has no website right now.`,
+        advice: [
+          'Suspensions usually follow a missed renewal payment, an unanswered verification email, or a complaint.',
+          'Check the inbox of the email address used to register the domain for a message from the registrar, and follow its instructions.',
+          'If you cannot find one, contact the registrar’s support and ask why the domain is on hold.',
+          status.expiresOn ? `The registration itself runs until ${day(status.expiresOn) ?? status.expiresOn}.` : RECHECK,
+        ].filter(Boolean),
       }
     case 'active':
       return {
         code: 'NO_WEBSITE',
         message:
           hostname === domain
-            ? `${domain} is registered, but it doesn't point to a website yet (no address records in DNS).`
-            : `${domain} is registered, but ${hostname} doesn't point to a website. Try ${domain} or check the address.`,
+            ? `${domain} is registered, but it does not point to a website yet.`
+            : `${domain} is registered, but ${hostname} does not point to a website.`,
+        advice: [
+          hostname === domain
+            ? 'The domain has no address (A, AAAA or CNAME) records in its DNS settings.'
+            : `Try scanning ${domain} instead, or add a record for ${hostname} in your DNS settings.`,
+          'If you have a website, add the records your hosting provider gives you at your DNS provider or registrar.',
+          status.expiresOn ? `The domain is registered until ${day(status.expiresOn) ?? status.expiresOn}.` : RECHECK,
+        ],
       }
     default:
       return {
         code: 'DOMAIN_NOT_FOUND',
-        message: `We could not find ${hostname} in DNS. Check the spelling, or whether the domain has expired.`,
+        message: `We could not find ${hostname} in DNS.`,
+        advice: [
+          'Check the spelling of the address.',
+          'The domain may have expired: the owner can check with the registrar where it was bought.',
+          'If the domain is new or its settings were just changed, wait up to 48 hours and try again.',
+        ],
       }
   }
 }

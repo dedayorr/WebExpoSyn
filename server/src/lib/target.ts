@@ -23,6 +23,8 @@ export class TargetValidationError extends Error {
   constructor(
     public code: TargetErrorCode,
     message: string,
+    /** Optional next steps shown to the user. */
+    public advice?: string[],
   ) {
     super(message)
     this.name = 'TargetValidationError'

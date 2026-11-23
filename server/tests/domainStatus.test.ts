@@ -55,6 +55,6 @@ describe('domain status (RDAP)', () => {
     const e = explainMissingDomain('sotab.com', 'sotab.com', { state: 'expired', expiredOn: '2026-10-01T00:00:00Z', detail: 'past_expiry' })
     expect(e.code).toBe('DOMAIN_EXPIRED')
     expect(e.message).toMatch(/expired on 1 October 2026/)
-    expect(explainMissingDomain('www.ok.com', 'ok.com', { state: 'active' }).message).toMatch(/www\.ok\.com doesn't point/)
+    expect(explainMissingDomain('www.ok.com', 'ok.com', { state: 'active' }).message).toMatch(/www\.ok\.com does not point/)
   })
 })

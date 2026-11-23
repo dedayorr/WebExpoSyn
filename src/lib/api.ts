@@ -17,6 +17,8 @@ export class ApiError extends Error {
     message: string,
     /** Seconds until retry is allowed (429 responses). */
     public retryAfter?: number,
+    /** Next steps from the server, e.g. how to renew an expired domain. */
+    public advice?: string[],
   ) {
     super(message)
     this.name = 'ApiError'
@@ -70,6 +72,7 @@ async function request<T>(path: string, init: RequestInit = {}, retried = false)
       body?.error?.code ?? `HTTP_${res.status}`,
       body?.error?.message ?? 'Something went wrong. Please try again.',
       Number.isFinite(retry) && retry > 0 ? retry : undefined,
+      Array.isArray(body?.error?.advice) ? body.error.advice.filter((a: unknown) => typeof a === 'string').slice(0, 8) : undefined,
     )
   }
   return body as T

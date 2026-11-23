@@ -188,6 +188,19 @@ export default function Scan() {
               <div role="alert" className="animate-slide-up rounded-[18px] border border-fail/40 bg-fail/10 p-6.5">
                 <h2 className="text-xl text-white">{errorTitle(phase.error)}</h2>
                 <p className="mt-2 text-[15px] leading-relaxed text-ink">{phase.error.message}</p>
+                {phase.error.advice && phase.error.advice.length > 0 && (
+                  <div className="mt-4">
+                    <p className="text-[13px] font-semibold tracking-[0.12em] text-periwinkle uppercase">What this means &amp; what to do</p>
+                    <ul className="mt-2.5 space-y-2">
+                      {phase.error.advice.map((a) => (
+                        <li key={a} className="flex gap-2.5 text-[15px] leading-relaxed text-ink">
+                          <span aria-hidden="true" className="mt-[9px] h-1.5 w-1.5 shrink-0 rounded-full bg-periwinkle" />
+                          {a}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
                 {phase.error.retryAfter && (
                   <p className="mt-2 text-sm text-muted">You can try again in about {Math.ceil(phase.error.retryAfter / 60)} minute(s).</p>
                 )}

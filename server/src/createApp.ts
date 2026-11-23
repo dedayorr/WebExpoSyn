@@ -252,9 +252,9 @@ export function createApp(deps: AppDeps = {}) {
         if (err.code === 'DOMAIN_NOT_FOUND') {
           // Tell the user *why*: expired, never registered, suspended, or no website.
           const status = await (deps.domainStatus ?? lookupDomainStatus)(domain).catch((): DomainStatus => ({ state: 'unknown' }))
-          const { code, message } = explainMissingDomain(hostname, domain, status)
+          const { code, message, advice } = explainMissingDomain(hostname, domain, status)
           logEvent('scan.rejected_target', { ...who, target: hostname, code, domainState: status.state })
-          throw new TargetValidationError(code as TargetValidationError['code'], message)
+          throw new TargetValidationError(code as TargetValidationError['code'], message, advice)
         }
         logEvent('scan.rejected_target', { ...who, target: hostname, code: err.code })
       } else {
@@ -299,7 +299,7 @@ export function createApp(deps: AppDeps = {}) {
       return
     }
     if (err instanceof TargetValidationError) {
-      res.status(422).json({ error: { code: err.code, message: err.message } })
+      res.status(422).json({ error: { code: err.code, message: err.message, ...(err.advice ? { advice: err.advice } : {}) } })
       return
     }
     if (err?.type === 'entity.parse.failed' || err?.type === 'entity.too.large') {
