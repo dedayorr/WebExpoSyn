@@ -105,3 +105,35 @@ describe('validateTarget', () => {
     expect(await rejectCode('missing.example.com', failing)).toBe('DNS_RESOLUTION_FAILED')
   })
 })
+
+describe('DNS lookup failures', async () => {
+  const { resolvePublicAddresses } = await import('../src/lib/target.js')
+  const fail = (code: string) => Object.assign(new Error(code), { code })
+
+  it('says a missing domain was not found, without retrying', async () => {
+    let calls = 0
+    const lookup = async () => {
+      calls++
+      throw fail('ENOTFOUND')
+    }
+    await expect(resolvePublicAddresses('nope.example', lookup)).rejects.toThrow(/could not find/)
+    expect(calls).toBe(1)
+  })
+
+  it('retries a timeout once and succeeds', async () => {
+    let calls = 0
+    const lookup = async () => {
+      if (calls++ === 0) throw fail('ETIMEOUT')
+      return [{ address: '93.184.216.34', family: 4 }]
+    }
+    await expect(resolvePublicAddresses('slow.example', lookup)).resolves.toHaveLength(1)
+    expect(calls).toBe(2)
+  })
+
+  it('asks to try again when lookups keep timing out', async () => {
+    const lookup = async () => {
+      throw fail('ETIMEOUT')
+    }
+    await expect(resolvePublicAddresses('slow.example', lookup)).rejects.toThrow(/try again/)
+  })
+})

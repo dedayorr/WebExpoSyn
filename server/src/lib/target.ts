@@ -1,4 +1,5 @@
 import dns from 'node:dns'
+import { withRetry } from './retry.js'
 import { getDomain } from 'tldts'
 import { isIpLiteral, isPublicIp } from './ip.js'
 
@@ -121,15 +122,29 @@ export function parseTarget(input: string): ParsedTarget {
  * any address is private stops split-horizon tricks where one record points
  * inside the network.
  */
+/** Answers that mean the name really has no address records. */
+const NOT_FOUND = new Set(['ENOTFOUND', 'ENODATA', 'NXDOMAIN', 'ENONAME'])
+const errCode = (e: unknown) => String((e as { code?: unknown })?.code ?? '')
+
 export async function resolvePublicAddresses(
   hostname: string,
   lookupAll: LookupAll = defaultLookupAll,
 ): Promise<{ address: string; family: 4 | 6 }[]> {
   let results: { address: string; family: number }[]
   try {
-    results = await lookupAll(hostname)
-  } catch {
-    throw new TargetValidationError('DNS_RESOLUTION_FAILED', `We could not find ${hostname} in DNS.`)
+    results = await withRetry(() => lookupAll(hostname), { shouldRetry: (e) => !NOT_FOUND.has(errCode(e)) })
+  } catch (err) {
+    if (NOT_FOUND.has(errCode(err))) {
+      throw new TargetValidationError(
+        'DNS_RESOLUTION_FAILED',
+        `We could not find ${hostname} in DNS. Check the spelling, or that the domain is registered and has a website.`,
+      )
+    }
+    // Timeouts and resolver hiccups: the domain may be fine.
+    throw new TargetValidationError(
+      'DNS_RESOLUTION_FAILED',
+      `We couldn't look up ${hostname} just now (${errCode(err) || 'lookup failed'}). Please try again in a minute.`,
+    )
   }
   if (results.length === 0) {
     throw new TargetValidationError('DNS_RESOLUTION_FAILED', `We could not find ${hostname} in DNS.`)
