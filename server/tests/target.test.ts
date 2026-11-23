@@ -102,7 +102,7 @@ describe('validateTarget', () => {
     const failing: LookupAll = async () => {
       throw Object.assign(new Error('nope'), { code: 'ENOTFOUND' })
     }
-    expect(await rejectCode('missing.example.com', failing)).toBe('DNS_RESOLUTION_FAILED')
+    expect(await rejectCode('missing.example.com', failing)).toBe('DOMAIN_NOT_FOUND')
   })
 })
 

@@ -6,6 +6,7 @@ import { z } from 'zod'
 import { config } from './config.js'
 import { logEvent } from './lib/logger.js'
 import { TargetValidationError, parseDomain, parseTarget } from './lib/target.js'
+import { explainMissingDomain, lookupDomainStatus, type DomainStatus } from './lib/domainStatus.js'
 import { TargetThrottle } from './lib/targetThrottle.js'
 import { defaultVerifier, requireAuth, type TokenVerifier } from './middleware/auth.js'
 import { billingRouter, billingWebhook, type BillingDeps } from './routes/billing.js'
@@ -18,6 +19,8 @@ export interface AppDeps {
   scan?: (url: string, opts: ScanOptions) => ReturnType<typeof runScan>
   /** Checks the DNS TXT record for this user's token. */
   verify?: (domain: string, userId: string) => Promise<boolean>
+  /** Explains why a domain has no DNS records (expired, unregistered...). */
+  domainStatus?: (domain: string) => Promise<DomainStatus>
   /** null disables saving (no secret key configured). */
   store?: ScanStore | null
   /** null disables auth (development only). */
@@ -246,6 +249,13 @@ export function createApp(deps: AppDeps = {}) {
         return
       }
       if (err instanceof TargetValidationError) {
+        if (err.code === 'DOMAIN_NOT_FOUND') {
+          // Tell the user *why*: expired, never registered, suspended, or no website.
+          const status = await (deps.domainStatus ?? lookupDomainStatus)(domain).catch((): DomainStatus => ({ state: 'unknown' }))
+          const { code, message } = explainMissingDomain(hostname, domain, status)
+          logEvent('scan.rejected_target', { ...who, target: hostname, code, domainState: status.state })
+          throw new TargetValidationError(code as TargetValidationError['code'], message)
+        }
         logEvent('scan.rejected_target', { ...who, target: hostname, code: err.code })
       } else {
         logEvent('scan.failed', { ...who, target: hostname })

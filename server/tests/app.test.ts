@@ -266,3 +266,28 @@ describe('API', () => {
     })
   })
 })
+
+describe('scanning a domain that no longer exists', async () => {
+  const { TargetValidationError } = await import('../src/lib/target.js')
+  it('explains that the domain expired', async () => {
+    const res = await request(
+      createApp({
+        verifier: fakeVerifier,
+        store: null,
+        billing: null,
+        paystack: null,
+        targetScansPerWindow: 100,
+        scan: async () => {
+          throw new TargetValidationError('DOMAIN_NOT_FOUND', 'not found')
+        },
+        domainStatus: async () => ({ state: 'expired', expiredOn: '2026-10-01T00:00:00Z', detail: 'past_expiry' }),
+      }),
+    )
+      .post('/api/scans')
+      .set('Authorization', 'Bearer header.payload.signature')
+      .send({ url: 'https://sotab.com' })
+    expect(res.status).toBe(422)
+    expect(res.body.error.code).toBe('DOMAIN_EXPIRED')
+    expect(res.body.error.message).toMatch(/expired on 1 October 2026/)
+  })
+})

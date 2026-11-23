@@ -197,7 +197,7 @@ export default function Scan() {
                       Upgrade to Pro <ArrowRight size={16} />
                     </Link>
                   )}
-                  {phase.error.status !== 422 && phase.error.code !== 'PLAN_LIMIT' && (
+                  {(phase.error.status !== 422 || phase.error.code === 'DNS_RESOLUTION_FAILED') && phase.error.code !== 'PLAN_LIMIT' && (
                     <Button onClick={() => setRunId((r) => r + 1)}>
                       <RotateCcw size={16} /> Try again
                     </Button>
@@ -272,6 +272,12 @@ export default function Scan() {
 function errorTitle(error: ApiError) {
   if (error.code === 'PLAN_LIMIT') return 'Free plan limit reached'
   if (error.code === 'AUTH_UNAVAILABLE') return 'Couldn’t confirm your sign-in'
+  if (error.code === 'DOMAIN_EXPIRED') return 'This domain has expired'
+  if (error.code === 'DOMAIN_NOT_REGISTERED') return 'This domain isn’t registered'
+  if (error.code === 'DOMAIN_ON_HOLD') return 'This domain is suspended'
+  if (error.code === 'NO_WEBSITE') return 'No website at this address'
+  if (error.code === 'DOMAIN_NOT_FOUND') return 'We couldn’t find this domain'
+  if (error.code === 'DNS_RESOLUTION_FAILED') return 'Couldn’t look up this domain'
   if (error.status === 422) return 'This address can’t be scanned'
   if (error.code === 'TARGET_COOLDOWN') return 'Scanned recently'
   if (error.status === 429) return 'Scan limit reached'

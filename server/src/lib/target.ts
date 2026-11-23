@@ -12,6 +12,11 @@ export type TargetErrorCode =
   | 'INTERNAL_HOSTNAME'
   | 'NOT_A_PUBLIC_DOMAIN'
   | 'DNS_RESOLUTION_FAILED'
+  | 'DOMAIN_NOT_FOUND'
+  | 'DOMAIN_EXPIRED'
+  | 'DOMAIN_NOT_REGISTERED'
+  | 'DOMAIN_ON_HOLD'
+  | 'NO_WEBSITE'
   | 'PRIVATE_ADDRESS'
 
 export class TargetValidationError extends Error {
@@ -136,7 +141,7 @@ export async function resolvePublicAddresses(
   } catch (err) {
     if (NOT_FOUND.has(errCode(err))) {
       throw new TargetValidationError(
-        'DNS_RESOLUTION_FAILED',
+        'DOMAIN_NOT_FOUND',
         `We could not find ${hostname} in DNS. Check the spelling, or that the domain is registered and has a website.`,
       )
     }
@@ -147,7 +152,7 @@ export async function resolvePublicAddresses(
     )
   }
   if (results.length === 0) {
-    throw new TargetValidationError('DNS_RESOLUTION_FAILED', `We could not find ${hostname} in DNS.`)
+    throw new TargetValidationError('DOMAIN_NOT_FOUND', `We could not find ${hostname} in DNS.`)
   }
   const blocked = results.find((r) => !isPublicIp(r.address))
   if (blocked) {
