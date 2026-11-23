@@ -35,8 +35,17 @@ async function currentToken(forceRefresh = false): Promise<string | undefined> {
   return (await supabase.auth.getSession()).data.session?.access_token
 }
 
-async function request<T>(path: string, init: RequestInit = {}, retried = false): Promise<T> {
+async function request<T>(path: string, init: RequestInit = {}, retried = false, networkRetried = false): Promise<T> {
   const token = await currentToken(retried)
+
+  // AbortSignal.timeout() is missing on phones with browsers older than ~2022,
+  // so build the timeout by hand: it works everywhere.
+  const controller = new AbortController()
+  let timedOut = false
+  const timer = setTimeout(() => {
+    timedOut = true
+    controller.abort()
+  }, REQUEST_TIMEOUT_MS)
 
   let res: Response
   try {
@@ -49,19 +58,31 @@ async function request<T>(path: string, init: RequestInit = {}, retried = false)
       },
       // Never send cookies to the API; auth is the bearer token only.
       credentials: 'omit',
-      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      signal: controller.signal,
     })
   } catch (err) {
-    if ((err as Error).name === 'TimeoutError') {
+    if (timedOut) {
       throw new ApiError(0, 'CLIENT_TIMEOUT', 'The scan is taking too long. Please try again later.')
     }
-    throw new ApiError(0, 'NETWORK', "Can't reach the WebExpoSyn API. Check your connection, or that the server is running.")
+    // Mobile connections drop briefly; one quiet retry fixes most of these.
+    if (!networkRetried) {
+      await new Promise((r) => setTimeout(r, 1500))
+      return request<T>(path, init, retried, true)
+    }
+    console.error('WebExpoSyn API request failed:', err)
+    throw new ApiError(
+      0,
+      'NETWORK',
+      'We couldn’t connect to WebExpoSyn. Check your internet connection and try again. If it keeps happening, update your browser or try another one.',
+    )
+  } finally {
+    clearTimeout(timer)
   }
 
   // A rejected token may just be stale: get a fresh one and try once more
   // before treating the session as over.
   if (res.status === 401 && !retried && token) {
-    return request<T>(path, init, true)
+    return request<T>(path, init, true, networkRetried)
   }
 
   const body = await res.json().catch(() => null)

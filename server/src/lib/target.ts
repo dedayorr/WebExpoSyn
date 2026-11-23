@@ -1,4 +1,5 @@
 import dns from 'node:dns'
+import { dohQuery, type DohFetch, type DohResponse } from './doh.js'
 import { withRetry } from './retry.js'
 import { getDomain } from 'tldts'
 import { isIpLiteral, isPublicIp } from './ip.js'
@@ -50,7 +51,7 @@ export type LookupAll = (hostname: string) => Promise<{ address: string; family:
 const LOOKUP_TIMEOUT_MS = 5_000
 
 /** System resolver lookup with a hard timeout (getaddrinfo itself has none). */
-export const defaultLookupAll: LookupAll = (hostname) =>
+export const systemLookupAll: LookupAll = (hostname) =>
   new Promise((resolve, reject) => {
     const timer = setTimeout(
       () => reject(Object.assign(new Error('DNS lookup timed out'), { code: 'ETIMEOUT' })),
@@ -67,6 +68,42 @@ export const defaultLookupAll: LookupAll = (hostname) =>
       },
     )
   })
+
+const dnsError = (code: string, message: string) => Object.assign(new Error(message), { code })
+
+/**
+ * Address lookup over DNS-over-HTTPS (Cloudflare, then Google). Used when the
+ * hosting platform's resolver fails (seen on Vercel as EBUSY / timeouts).
+ * The answers still go through the same public-address checks as any lookup.
+ */
+export async function dohLookupAll(hostname: string, fetchImpl: DohFetch = fetch) {
+  const [a, aaaa] = await Promise.allSettled([dohQuery(hostname, 'A', 5_000, fetchImpl), dohQuery(hostname, 'AAAA', 5_000, fetchImpl)])
+  const ok = [a, aaaa].filter((r): r is PromiseFulfilledResult<DohResponse> => r.status === 'fulfilled').map((r) => r.value)
+  if (ok.length === 0) throw dnsError('EDOH', 'DNS-over-HTTPS lookup failed')
+  const addresses = ok.flatMap((r) =>
+    (r.Answer ?? [])
+      .filter((ans) => ans.type === 1 || ans.type === 28)
+      .map((ans) => ({ address: ans.data.trim(), family: ans.type === 1 ? 4 : 6 })),
+  )
+  if (addresses.length > 0) return addresses
+  if (ok.some((r) => r.Status === 3)) throw dnsError('ENOTFOUND', 'NXDOMAIN')
+  if (ok.every((r) => r.Status === 0)) throw dnsError('ENODATA', 'No address records')
+  throw dnsError('ESERVFAIL', 'Resolver failure')
+}
+
+/** System resolver first; if it fails for any reason, confirm with DNS-over-HTTPS. */
+export const defaultLookupAll: LookupAll = async (hostname) => {
+  try {
+    return await systemLookupAll(hostname)
+  } catch (systemErr) {
+    try {
+      return await dohLookupAll(hostname)
+    } catch (dohErr) {
+      // DoH unreachable: report the original error; otherwise trust the public resolver's answer.
+      throw (dohErr as { code?: string }).code === 'EDOH' ? systemErr : dohErr
+    }
+  }
+}
 
 const ALLOWED_PORTS = new Set([80, 443])
 const INTERNAL_SUFFIXES = ['.localhost', '.local', '.internal', '.intranet', '.lan', '.home', '.corp', '.localdomain']

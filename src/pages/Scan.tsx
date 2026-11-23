@@ -296,7 +296,7 @@ function errorTitle(error: ApiError) {
   if (error.status === 429) return 'Scan limit reached'
   if (error.status === 503) return 'Scanner busy'
   if (error.status === 504 || error.code === 'CLIENT_TIMEOUT') return 'Scan timed out'
-  if (error.code === 'NETWORK') return 'Can’t reach the scanner'
+  if (error.code === 'NETWORK') return 'Couldn’t connect'
   return 'Something went wrong'
 }
 

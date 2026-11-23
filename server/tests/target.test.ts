@@ -137,3 +137,33 @@ describe('DNS lookup failures', async () => {
     await expect(resolvePublicAddresses('slow.example', lookup)).rejects.toThrow(/try again/)
   })
 })
+
+describe('DNS-over-HTTPS fallback', async () => {
+  const { dohLookupAll } = await import('../src/lib/target.js')
+  const fake = (byType: Record<string, unknown>) =>
+    (async (url: string) => {
+      const type = new URL(url).searchParams.get('type')!
+      return new Response(JSON.stringify(byType[type]), { status: 200 })
+    }) as never
+
+  it('returns A and AAAA answers, skipping CNAMEs', async () => {
+    const r = await dohLookupAll('shop.example.com', fake({
+      A: { Status: 0, AD: false, Answer: [{ name: 'x', type: 5, TTL: 1, data: 'cdn.example.net.' }, { name: 'x', type: 1, TTL: 1, data: '93.184.215.14' }] },
+      AAAA: { Status: 0, AD: false, Answer: [{ name: 'x', type: 28, TTL: 1, data: '2606:2800:21f:cb07::1' }] },
+    }))
+    expect(r).toEqual([{ address: '93.184.215.14', family: 4 }, { address: '2606:2800:21f:cb07::1', family: 6 }])
+  })
+
+  it('reports NXDOMAIN as not found', async () => {
+    await expect(dohLookupAll('gone.example', fake({ A: { Status: 3, AD: false }, AAAA: { Status: 3, AD: false } }))).rejects.toMatchObject({ code: 'ENOTFOUND' })
+  })
+
+  it('reports a registered name with no addresses as no data', async () => {
+    await expect(dohLookupAll('mail-only.example', fake({ A: { Status: 0, AD: false }, AAAA: { Status: 0, AD: false } }))).rejects.toMatchObject({ code: 'ENODATA' })
+  })
+
+  it('fails with EDOH when the resolvers are unreachable', async () => {
+    const down = (async () => { throw new TypeError('fetch failed') }) as never
+    await expect(dohLookupAll('x.example', down)).rejects.toMatchObject({ code: 'EDOH' })
+  })
+})
