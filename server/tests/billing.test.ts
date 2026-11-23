@@ -335,3 +335,20 @@ describe('signature and client helpers', () => {
     expect(seen[0]).toBe(`https://api.paystack.co/transaction/initialize Bearer ${SECRET}`)
   })
 })
+
+describe('stored webhook data', async () => {
+  const { minimalEvent } = await import('../src/routes/billing.js')
+  it('never keeps card details, authorization codes or personal data', () => {
+    const kept = minimalEvent('charge.success', {
+      reference: 'ref_1',
+      amount: 500000,
+      authorization: { authorization_code: 'AUTH_secret', last4: '4081', bin: '408408' },
+      customer: { customer_code: 'CUS_1', email: 'dayo@example.com', phone: '0800' },
+      ip_address: '1.2.3.4',
+      plan: { plan_code: 'PLN_pro123' },
+    })
+    const json = JSON.stringify(kept)
+    expect(json).not.toMatch(/AUTH_secret|4081|408408|dayo@example\.com|0800|1\.2\.3\.4/)
+    expect(kept).toMatchObject({ reference: 'ref_1', customer_code: 'CUS_1', plan_code: 'PLN_pro123' })
+  })
+})

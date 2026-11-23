@@ -293,3 +293,34 @@ describe('scanning a domain that no longer exists', async () => {
     expect(res.body.error.advice.join(' ')).toMatch(/auto-renew/)
   })
 })
+
+describe('rate limits shared across server instances', () => {
+  const userId = '11111111-1111-1111-1111-111111111111'
+  const storeWith = (byUser: number, byTarget: number) => ({
+    saveScan: async () => {},
+    markVerified: async () => {},
+    countRecent: async () => ({ byUser, byTarget }),
+  })
+  const verifier: TokenVerifier = async () => ({ id: userId, email: 'a@b.co' })
+  const post = (store: ReturnType<typeof storeWith>) =>
+    request(createApp({ scan: fakeScan, verifier, store, billing: null, paystack: null, targetScansPerWindow: 3, scanRateLimit: 10 }))
+      .post('/api/scans')
+      .set('Authorization', 'Bearer header.payload.signature')
+      .send({ url: 'https://example.com' })
+
+  it('blocks a user who has scanned too much on any instance', async () => {
+    const res = await post(storeWith(10, 0))
+    expect(res.status).toBe(429)
+    expect(res.body.error.code).toBe('RATE_LIMITED')
+  })
+
+  it('cools down a site scanned too often by anyone', async () => {
+    const res = await post(storeWith(0, 3))
+    expect(res.status).toBe(429)
+    expect(res.body.error.code).toBe('TARGET_COOLDOWN')
+  })
+
+  it('allows scans under both limits', async () => {
+    expect((await post(storeWith(2, 1))).status).toBe(200)
+  })
+})

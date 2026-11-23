@@ -187,6 +187,30 @@ export function createApp(deps: AppDeps = {}) {
       res.status(503).json({ error: { code: 'BUSY', message: 'The scanner is busy. Please try again in a minute.' } })
       return
     }
+    // Shared limits across all server instances (the in-memory ones below are per instance).
+    if (store?.countRecent && isUuid(userId)) {
+      try {
+        const recent = await store.countRecent(userId, hostname)
+        if (recent.byUser >= (deps.scanRateLimit ?? config.SCAN_RATE_LIMIT_PER_15_MIN)) {
+          logEvent('scan.rate_limited', { ...who, scope: 'user', shared: true })
+          res.setHeader('Retry-After', '900')
+          res.status(429).json({ error: { code: 'RATE_LIMITED', message: 'Too many scans. Please wait a few minutes and try again.' } })
+          return
+        }
+        if (recent.byTarget >= (deps.targetScansPerWindow ?? config.TARGET_SCANS_PER_10_MIN)) {
+          logEvent('scan.target_cooldown', { ...who, target: hostname, shared: true })
+          res.setHeader('Retry-After', '600')
+          res.status(429).json({
+            error: { code: 'TARGET_COOLDOWN', message: `${hostname} was scanned recently. Please wait a few minutes before scanning it again.` },
+          })
+          return
+        }
+      } catch (err) {
+        // The per-instance limits still apply, so a database hiccup doesn't block scanning.
+        logEvent('scan.rate_check_failed', { ...who, reason: err instanceof Error ? err.message : 'unknown' })
+      }
+    }
+
     if (!throttle.tryAcquire(hostname)) {
       logEvent('scan.target_cooldown', { ...who, target: hostname })
       res.setHeader('Retry-After', String(throttle.retryAfter(hostname)))

@@ -12,6 +12,7 @@ export type SecurityEvent =
   | 'scan.timeout'
   | 'scan.rejected_target'
   | 'scan.rate_limited'
+  | 'scan.rate_check_failed'
   | 'scan.target_cooldown'
   | 'scan.busy'
   | 'auth.failed'

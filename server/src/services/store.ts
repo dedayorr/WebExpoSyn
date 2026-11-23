@@ -10,6 +10,12 @@ import type { ScanReport } from '../types.js'
 export interface ScanStore {
   saveScan(userId: string, report: ScanReport): Promise<void>
   markVerified(userId: string, domain: string): Promise<void>
+  /**
+   * Recent scans by this user and of this hostname (by anyone). Backs the
+   * rate limits with the database, because on Vercel several server
+   * instances run at once and each has its own in-memory counters.
+   */
+  countRecent?(userId: string, hostname: string): Promise<{ byUser: number; byTarget: number }>
 }
 
 /** Scan history kept per user; older scans are pruned after each save. */
@@ -20,6 +26,16 @@ export const isUuid = (v: string) => UUID_RE.test(v)
 
 export class SupabaseScanStore implements ScanStore {
   constructor(private db: SupabaseClient) {}
+
+  async countRecent(userId: string, hostname: string) {
+    const since = (ms: number) => new Date(Date.now() - ms).toISOString()
+    const [user, target] = await Promise.all([
+      this.db.from('scans').select('id', { count: 'exact', head: true }).eq('user_id', userId).gte('completed_at', since(15 * 60_000)),
+      this.db.from('scans').select('id', { count: 'exact', head: true }).eq('hostname', hostname).gte('completed_at', since(10 * 60_000)),
+    ])
+    if (user.error || target.error) throw new Error(`countRecent: ${(user.error ?? target.error)!.message}`)
+    return { byUser: user.count ?? 0, byTarget: target.count ?? 0 }
+  }
 
   async saveScan(userId: string, report: ScanReport) {
     const { error } = await this.db.from('scans').insert({

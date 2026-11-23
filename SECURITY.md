@@ -113,6 +113,14 @@ There was no record of who scanned what, rejected targets, rate-limit hits or fa
 - **Database rule.** A trigger on `auth.users` (`supabase/migrations/20261122190000_unique_account_emails.sql`) refuses a sign-up or email change whose inbox is already registered, ignoring letter case, `+tag` suffixes, and Gmail dots and `googlemail.com`. An advisory lock stops two simultaneous sign-ups for the same inbox. The helper functions are not callable from the browser. Tested in `server/tests/rls.test.ts`.
 - **Deliberate trade-off.** The sign-up form now says "An account with this email already exists" instead of Supabase's neutral "check your email" screen. That makes it possible to test whether an email is registered (account enumeration). It was chosen for clarity; Supabase's sign-up rate limits apply, and enabling CAPTCHA (see below) makes bulk checking impractical.
 
+### Update: audit after deploying to Vercel (23 Nov 2026)
+
+Re-checked the billing, domain-status, sign-in and deployment changes. Dependencies: 0 known vulnerabilities (frontend and server). Live site headers (CSP, HSTS, frame, referrer, permissions) confirmed on webexposyn.vercel.app.
+
+- **Fixed: rate limits only counted per server instance.** On Vercel several API instances run at once, each with its own in-memory counters, so the per-user scan limit and the per-site cooldown could be multiplied. The API now also counts recent scans in the database (`countRecent`), shared by all instances. The in-memory limits stay as a first line; if the database check fails, they still apply. (OWASP A06, CWE-770)
+- **Fixed: webhook events stored more than needed.** `billing_events` kept Paystack's full payload, including the customer's email, phone and IP, card BIN/last 4 digits and the reusable card `authorization_code`. Only the fields used for billing are kept now (`minimalEvent`). (OWASP A04, CWE-312)
+- Checked and fine: scanner connections to nameservers and TLS only go to validated public IPs; registry (RDAP) lookups go only to servers on IANA's list and don't follow redirects; no raw-HTML rendering in the frontend; browser redirects only to Paystack domains; no secrets tracked in git.
+
 ### Limitations
 
 These were not assessable from the repository: the deployed hosting and proxy configuration (including `TRUST_PROXY`), the Supabase project settings, egress firewall rules on the API host, and runtime behaviour against real websites. Rate-limit and throttle state is in memory; use a shared store (for example Redis) if you run more than one API instance.

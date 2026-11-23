@@ -31,6 +31,27 @@ const verifyBody = z.object({ reference: z.string().trim().regex(/^[A-Za-z0-9._=
 
 const unavailable = { error: { code: 'BILLING_UNAVAILABLE', message: 'Upgrading is not available right now. Please try again later.' } }
 
+/**
+ * What we keep of a webhook event. Paystack events include the customer's
+ * email, phone and IP, card details and a reusable card authorization code;
+ * none of that is needed, so it is never stored.
+ */
+export function minimalEvent(event: string, data: Record<string, any>) {
+  const pick = (v: unknown) => (typeof v === 'string' || typeof v === 'number' ? v : undefined)
+  return {
+    event,
+    reference: pick(data.reference),
+    status: pick(data.status),
+    amount: pick(data.amount),
+    currency: pick(data.currency),
+    paid_at: pick(data.paid_at),
+    plan_code: pick(data.plan?.plan_code ?? data.plan_object?.plan_code ?? data.plan),
+    subscription_code: pick(data.subscription_code ?? data.subscription?.subscription_code),
+    next_payment_date: pick(data.next_payment_date),
+    customer_code: pick(data.customer?.customer_code),
+  }
+}
+
 /** Keeps the later of two period ends, so replays and out-of-order events never shorten a paid period. */
 function laterEnd(existing: string | null, candidate: string): string {
   if (existing && Date.parse(existing) > Date.parse(candidate)) return existing
@@ -93,7 +114,7 @@ export function billingWebhook(deps: BillingDeps): RequestHandler[] {
       if (userId && !isUuid(userId)) userId = null
       if (!userId && typeof customerCode === 'string') userId = await store.findUserByCustomer(customerCode)
 
-      recorded = await store.recordEvent(id, event, userId, body)
+      recorded = await store.recordEvent(id, event, userId, minimalEvent(event, data))
       if (!recorded) {
         res.json({ received: true, duplicate: true })
         return
