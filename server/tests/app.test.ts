@@ -1,6 +1,6 @@
 import request from 'supertest'
 import { describe, expect, it } from 'vitest'
-import { createApp, type AppDeps } from '../src/app.js'
+import { createApp, type AppDeps } from '../src/createApp.js'
 import type { TokenVerifier } from '../src/middleware/auth.js'
 import type { ScanStore } from '../src/services/store.js'
 import { runScan } from '../src/services/scan.js'

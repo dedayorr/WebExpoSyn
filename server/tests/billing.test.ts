@@ -1,7 +1,7 @@
 import { createHmac } from 'node:crypto'
 import request from 'supertest'
 import { describe, expect, it } from 'vitest'
-import { createApp, type AppDeps } from '../src/app.js'
+import { createApp, type AppDeps } from '../src/createApp.js'
 import type { TokenVerifier } from '../src/middleware/auth.js'
 import {
   FREE_SUBSCRIPTION,
