@@ -8,6 +8,7 @@ import { useAuth } from '@/auth/AuthProvider'
 import { useReports } from '@/hooks/useReports'
 import { useBilling } from '@/hooks/useBilling'
 import { MODULE_ORDER, MODULE_SHORT, formatDate } from '@/lib/modules'
+import { MODULE_PLAIN } from '@/lib/plainEnglish'
 import { cn } from '@/lib/utils'
 import logoIcon from '@/assets/logo-icon.png'
 import type { ScanReport } from '@/types'
@@ -420,6 +421,7 @@ function Overview({
                   <span className="text-[15px] font-semibold text-white">{m.name}</span>
                   <span className="font-mono text-xs text-subtle">{m.pass + m.fail + m.warn + m.unverified} checks</span>
                 </div>
+                {MODULE_PLAIN[m.id] && <p className="mt-1.5 text-[13px] leading-snug text-muted">{MODULE_PLAIN[m.id].short}</p>}
                 <div className="mt-3.5 flex h-2 gap-0.5 overflow-hidden rounded-full bg-sky/8">
                   <div className="grow-x bg-pass" style={{ width: w(m.pass) }} />
                   <div className="grow-x bg-fail" style={{ width: w(m.fail) }} />
@@ -430,7 +432,7 @@ function Overview({
                   <span className="text-pass">{m.pass} passed</span>
                   <span className="text-fail">{m.fail} failed</span>
                   <span className="text-warn">{m.warn} warn</span>
-                  <span className="text-sky">{m.unverified} n/v</span>
+                  <span className="text-sky">{m.unverified} couldn’t verify</span>
                 </div>
                 {m.error && <p className="mt-2 text-xs text-warn">Didn't complete: rescan to retry</p>}
               </Link>

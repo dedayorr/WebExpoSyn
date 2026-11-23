@@ -1,5 +1,6 @@
 import { jsPDF } from 'jspdf'
 import autoTable from 'jspdf-autotable'
+import { MODULE_PLAIN, termsIn } from './plainEnglish'
 import type { CheckStatus, Finding, ScanReport, Severity } from '@/types'
 
 /**
@@ -227,6 +228,22 @@ export function buildReportPdf(report: ScanReport, opts: PdfOptions = {}): jsPDF
   })
   y = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 8
 
+  heading('What each check means', 'In plain English', 45)
+  autoTable(doc, {
+    startY: y,
+    margin: { left: M, right: M, bottom: FOOTER_SPACE, top: M },
+    head: [['Check', 'What it means', 'Think of it like']],
+    body: report.modules
+      .filter((m) => MODULE_PLAIN[m.id])
+      .map((m) => [pdfSafe(`${MODULE_LABELS[m.id]}\n${MODULE_PLAIN[m.id].plainName}`), pdfSafe(MODULE_PLAIN[m.id].what), pdfSafe(MODULE_PLAIN[m.id].analogy)]),
+    theme: 'grid',
+    styles: { font: 'helvetica', fontSize: 8.5, cellPadding: 2.4, textColor: C.ink, lineColor: C.line, lineWidth: 0.2, valign: 'top' },
+    headStyles: { fillColor: C.navy, textColor: [255, 255, 255], fontStyle: 'bold' },
+    columnStyles: { 0: { cellWidth: 40, fontStyle: 'bold' }, 2: { cellWidth: 48, textColor: C.muted } },
+    alternateRowStyles: { fillColor: C.panel },
+  })
+  y = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 8
+
   /* ---------------- 3. Issues ---------------- */
   const issues = report.findings
     .filter((f) => f.status === 'fail' || f.status === 'warn')
@@ -349,6 +366,25 @@ export function buildReportPdf(report: ScanReport, opts: PdfOptions = {}): jsPDF
       styles: { font: 'helvetica', fontSize: 9, cellPadding: 2.2, textColor: C.ink, lineColor: C.line, lineWidth: 0.2 },
       headStyles: { fillColor: C.navy, textColor: [255, 255, 255], fontStyle: 'bold' },
       columnStyles: { 1: { cellWidth: 38 }, 2: { cellWidth: 22, textColor: C.pass, fontStyle: 'bold' } },
+      alternateRowStyles: { fillColor: C.panel },
+    })
+  }
+
+  /* ---------------- 5. Jargon buster ---------------- */
+  const terms = termsIn(...report.findings.map((f) => `${f.title} ${f.found} ${f.why} ${f.action}`))
+  if (terms.length) {
+    if (passed.length) y = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY
+    y += 8
+    heading('Words used in this report', 'Explained simply', 30)
+    autoTable(doc, {
+      startY: y,
+      margin: { left: M, right: M, bottom: FOOTER_SPACE, top: M },
+      head: [['Term', 'What it means']],
+      body: terms.map((t) => [pdfSafe(t.term), pdfSafe(t.plain)]),
+      theme: 'grid',
+      styles: { font: 'helvetica', fontSize: 8.5, cellPadding: 2.2, textColor: C.ink, lineColor: C.line, lineWidth: 0.2, valign: 'top' },
+      headStyles: { fillColor: C.navy, textColor: [255, 255, 255], fontStyle: 'bold' },
+      columnStyles: { 0: { cellWidth: 46, fontStyle: 'bold' } },
       alternateRowStyles: { fillColor: C.panel },
     })
   }

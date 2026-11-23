@@ -9,6 +9,7 @@ import { Button, buttonVariants } from '@/components/ui/button'
 import { useReport } from '@/hooks/useReports'
 import { notifyReportsChanged } from '@/lib/reportStore'
 import { MODULE_LABELS, MODULE_ORDER, MODULE_SHORT, formatDate } from '@/lib/modules'
+import { FindingTerms, ModuleExplainer, ModuleGuide } from '@/components/report/PlainEnglish'
 import { cn } from '@/lib/utils'
 import logoIconUrl from '@/assets/logo-icon.png'
 import type { CheckStatus, ModuleId, ScanReport } from '@/types'
@@ -258,6 +259,8 @@ function ReportView({
           </div>
         )}
 
+        <ModuleGuide modules={MODULE_ORDER.filter((m) => report.modules.some((x) => x.id === m))} />
+
         <div className="animate-slide-up stagger-3 mt-8 flex flex-col gap-3 print:hidden">
           <div role="group" aria-label="Filter by result" className="flex flex-wrap gap-2">
             {statusFilters.map((f) => (
@@ -287,6 +290,7 @@ function ReportView({
         </div>
 
         <div key={`${status}-${module}`} className="mt-5.5 flex flex-col gap-3">
+          {module !== 'all' && <ModuleExplainer module={module} />}
           {visible.map((f, i) => {
             const isOpen = !!open[f.id]
             return (
@@ -322,6 +326,7 @@ function ReportView({
                           {f.evidence || '(none)'}
                         </pre>
                       </div>
+                      <FindingTerms finding={f} />
                     </div>
                   </div>
                 </div>

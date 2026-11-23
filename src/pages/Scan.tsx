@@ -12,14 +12,14 @@ import type { ScanReport } from '@/types'
 
 /** What the engine does, in order. Shown as progress while the API works. */
 const STEPS = [
-  { title: 'Validating domain', detail: 'URL format, public addresses, safe redirects' },
-  { title: 'Checking ownership', detail: 'Looking for your WebExpoSyn TXT record' },
-  { title: 'SSL/TLS analysis', detail: 'Certificate, trust chain, protocol versions' },
-  { title: 'HTTP security headers', detail: 'CSP, HSTS, framing, referrer, permissions' },
-  { title: 'DNS security', detail: 'Nameservers, CAA, DNSSEC, dangling records' },
-  { title: 'Email security', detail: 'SPF, DMARC and DKIM' },
-  { title: 'Website exposure', detail: 'Server disclosure; deeper checks for verified owners' },
-  { title: 'Building your report', detail: 'Severity, evidence and recommended fixes' },
+  { title: 'Validating domain', detail: 'Making sure the address is real and safe to check' },
+  { title: 'Checking ownership', detail: 'Seeing if you’ve proved this website is yours' },
+  { title: 'SSL/TLS analysis', detail: 'Is the padlock working, so what visitors type stays private?' },
+  { title: 'HTTP security headers', detail: 'Does your site tell browsers how to protect visitors?' },
+  { title: 'DNS security', detail: 'Does your web address point to the right place, safely?' },
+  { title: 'Email security', detail: 'Can scammers send emails that look like they come from you?' },
+  { title: 'Website exposure', detail: 'Is anything private sitting where anyone can open it?' },
+  { title: 'Building your report', detail: 'Ranking issues and writing clear fixes' },
 ]
 
 /** The API answers in one response, so progress is paced locally and holds on the last step. */
