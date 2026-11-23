@@ -24,7 +24,7 @@ export function Hero() {
   }
 
   return (
-    <section id="top" className="hero-clip relative px-6 pt-[104px] pb-[112px]">
+    <section id="top" className="hero-clip relative px-6 pt-26 pb-28">
       {/* Fixed background image: stays still while the page scrolls */}
       <div
         aria-hidden="true"
@@ -36,23 +36,23 @@ export function Hero() {
         className="absolute inset-0 z-0 bg-[linear-gradient(100deg,rgba(9,21,64,0.95)_0%,rgba(9,21,64,0.86)_45%,rgba(9,21,64,0.6)_100%)]"
       />
 
-      <div className="relative z-10 mx-auto flex max-w-[1240px] flex-wrap items-center gap-14">
+      <div className="relative z-10 mx-auto flex max-w-310 flex-wrap items-center gap-14">
         <div className="min-w-0 flex-[1_1_480px]">
-          <div className="animate-slide-up stagger-1 inline-flex items-center gap-2.5 rounded-full border border-periwinkle/35 bg-royal/25 px-3.5 py-1.5 text-[13px] font-medium italic text-sky">
+          {/* <div className="animate-slide-up stagger-1 inline-flex items-center gap-2.5 rounded-full border border-periwinkle/35 bg-royal/25 px-3.5 py-1.5 text-[13px] font-medium italic text-sky">
             <Lock size={15} className="text-periwinkle" />
             Website security posture &amp; exposure assessment
-          </div>
+          </div> */}
           <h1 className="animate-slide-up stagger-2 mt-6 text-[clamp(38px,6vw,68px)] leading-[1.04] font-bold text-white">
             Enter your website. <span className="text-periwinkle">Discover weaknesses.</span> Understand what to fix.
           </h1>
-          <p className="animate-slide-up stagger-3 mt-6 max-w-[560px] text-[clamp(17px,2vw,19px)] leading-relaxed text-sky">
+          <p className="animate-slide-up stagger-3 mt-6 max-w-140 text-[clamp(17px,2vw,19px)] leading-relaxed text-sky">
             WebExpoSyn checks your SSL/TLS, security headers, DNS, email authentication and public exposure, then
             tells you exactly what passed, what failed, what we couldn't verify, and how to fix each issue.
           </p>
 
           <form
             onSubmit={onSubmit}
-            className="animate-slide-up stagger-4 mt-9 flex max-w-[580px] flex-wrap gap-2.5 rounded-2xl border border-sky/20 bg-surface/90 p-2"
+            className="animate-slide-up stagger-4 mt-9 flex max-w-145 flex-wrap gap-2.5 rounded-2xl border border-sky/20 bg-surface/90 p-2"
           >
             <label htmlFor="hero-url" className="sr-only">
               Website address
@@ -69,7 +69,7 @@ export function Hero() {
                 className="h-12 min-w-0 flex-1 border-0 bg-transparent text-base text-white placeholder:text-subtle focus:outline-none"
               />
             </div>
-            <Button type="submit" className="h-[52px] px-6 text-base">
+            <Button type="submit" className="h-13 px-6 text-base">
               Scan my website <ArrowRight size={18} />
             </Button>
           </form>
@@ -105,7 +105,7 @@ export function Hero() {
                     r.highlight ? 'border border-fail/25 bg-fail/10' : 'bg-sky/5'
                   }`}
                 >
-                  <SeverityBadge severity={r.sev} className="min-w-[64px]" />
+                  <SeverityBadge severity={r.sev} className="min-w-16" />
                   <span className="flex-1 text-sm text-white">{r.text}</span>
                 </div>
               ))}
