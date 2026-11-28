@@ -25,7 +25,7 @@
     "helmet": "^8.0.0",
     "ipaddr.js": "^2.2.0",
     "jose": "^6.2.18",
-    "tldts": "^6.1.60",
+    "tldts": "^7.5.5",
     "zod": "^4.6.7"
   },
   "devDependencies": {
